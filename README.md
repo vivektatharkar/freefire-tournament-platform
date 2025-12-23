@@ -19,3 +19,4 @@ Or run via Docker (from `devops/`):
    docker compose up --build
 
 Frontend will be available at http://localhost:3000 and backend at http://localhost:5000
+Updated on <today>
