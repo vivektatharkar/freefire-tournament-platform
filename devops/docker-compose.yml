@@ -1,0 +1,45 @@
+version: '3.8'
+services:
+  db:
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_PASS:-root_password}
+      MYSQL_DATABASE: ${DB_NAME:-freefire}
+    volumes:
+      - db_data:/var/lib/mysql
+    ports:
+      - "3306:3306"
+
+  backend:
+    build:
+      context: ..
+      dockerfile: devops/Dockerfile.backend
+    working_dir: /app/backend
+    environment:
+      - NODE_ENV=development
+      - DB_HOST=db
+      - DB_USER=root
+      - DB_PASS=${DB_PASS:-root_password}
+      - DB_NAME=${DB_NAME:-freefire}
+      - DB_PORT=3306
+      - JWT_SECRET=${JWT_SECRET:-replace_this_with_secure_secret}
+      - RAZORPAY_KEY_ID=${RAZORPAY_KEY_ID}
+      - RAZORPAY_KEY_SECRET=${RAZORPAY_KEY_SECRET}
+    depends_on:
+      - db
+    ports:
+      - "5000:5000"
+    volumes:
+      - ../backend:/app/backend
+
+  frontend:
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+
+volumes:
+  db_data:
