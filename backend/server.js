@@ -1,5 +1,4 @@
-// server.js (or index.js)
-
+// backend/server.js
 import http from "http";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -9,30 +8,12 @@ import models from "./models/index.js";
 
 dotenv.config();
 
-// Needed because we are using ES modules (import syntax)
+// ES modules helper
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const { sequelize } = models;
 const PORT = process.env.PORT || 5000;
-
-// ===== Serve React build (frontend) =====
-// Adjust the path if your frontend build folder is somewhere else.
-// Here it assumes: project/frontend/build
-import express from "express";
-
-app.use(
-  express.static(path.join(__dirname, "../frontend/build"))
-);
-
-// For any route that is not an API route, send back index.html
-// so that React Router can handle it on the client side.
-app.get("*", (req, res) => {
-  // If you have API routes like /api/..., make sure they are defined
-  // BEFORE this wildcard route in app.js.
-  res.sendFile(path.join(__dirname, "../frontend/build", "index.html"));
-});
-// =======================================
 
 async function start() {
   try {
