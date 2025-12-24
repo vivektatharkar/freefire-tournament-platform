@@ -3,13 +3,12 @@ import express from "express";
 import cors from "cors";
 import helmet from "helmet";
 import morgan from "morgan";
-import path from "path";
 import cookieParser from "cookie-parser";
 import dotenv from "dotenv";
 
 dotenv.config();
 
-// public routes
+// routes
 import authRoutes from "./routes/auth.js";
 import verifyRoutes from "./routes/verification.js";
 import usersRoutes from "./routes/users.js";
@@ -20,7 +19,7 @@ import csRoutes from "./routes/cs.js";
 import headshotRoutes from "./routes/headshot.js";
 import walletRoutes from "./routes/wallet.js";
 
-// admin routes
+// admin
 import adminWithdrawalsRoutes from "./routes/adminWithdrawals.js";
 import adminHeadshotRoutes from "./routes/adminHeadshotRoutes.js";
 import adminTournamentRoutes from "./routes/adminTournamentRoutes.js";
@@ -34,54 +33,35 @@ import notificationRoutes from "./routes/notifications.js";
 
 const app = express();
 
-/* ---------------- LOGGING (FIXED) ---------------- */
-if (process.env.NODE_ENV !== "production") {
-  app.use(
-    morgan("dev", {
-      skip: (req, res) =>
-        req.method === "OPTIONS" || res.statusCode === 304,
-    })
-  );
-} else {
-  app.use(morgan("combined"));
-}
+/* ---------- LOGGING ---------- */
+app.use(
+  process.env.NODE_ENV === "production"
+    ? morgan("combined")
+    : morgan("dev")
+);
 
-/* ---------------- SECURITY ---------------- */
+/* ---------- SECURITY ---------- */
 app.use(helmet());
 
-/* ---------------- CORS ---------------- */
+/* ---------- CORS ---------- */
 app.use(
   cors({
-    origin: process.env.FRONTEND_URL || true,
+    origin: process.env.FRONTEND_URL, // REQUIRED
     credentials: true,
   })
 );
 
+/* ---------- PARSERS ---------- */
+app.use(express.json({ limit: "2mb" }));
+app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
-/* ---------------- BODY PARSERS ---------------- */
-app.use(
-  express.json({
-    limit: "2mb",
-    verify: (req, res, buf) => {
-      req.rawBody = buf;
-    },
-  })
-);
-
-app.use(
-  express.urlencoded({
-    extended: true,
-    limit: "2mb",
-  })
-);
-
-/* ---------------- HEALTH CHECK ---------------- */
+/* ---------- HEALTH ---------- */
 app.get("/api/health", (req, res) => {
   res.json({ status: "OK", time: new Date().toISOString() });
 });
 
-/* ---------------- PUBLIC APIs ---------------- */
+/* ---------- PUBLIC API ---------- */
 app.use("/api/auth", authRoutes);
 app.use("/api/verify", verifyRoutes);
 app.use("/api/users", usersRoutes);
@@ -92,7 +72,7 @@ app.use("/api/b2b", b2bRoutes);
 app.use("/api/cs", csRoutes);
 app.use("/api/headshot", headshotRoutes);
 
-/* ---------------- ADMIN APIs ---------------- */
+/* ---------- ADMIN API ---------- */
 app.use("/api/admin", adminWithdrawalsRoutes);
 app.use("/api/admin", adminHeadshotRoutes);
 app.use("/api/admin", adminTournamentRoutes);
@@ -101,53 +81,18 @@ app.use("/api/admin", adminCsRoutes);
 app.use("/api/admin/users", adminUsersRouter);
 app.use("/api/admin", adminPaymentsRouter);
 
-/* ---------------- NOTIFICATIONS ---------------- */
+/* ---------- NOTIFICATIONS ---------- */
 app.use("/api/notifications", notificationRoutes);
 
-/* ---------------- STATIC FRONTEND ---------------- */
-/**
- * Folder layout:
- *  C:\freefire-tournament-platform\backend  <-- backend cwd
- *  C:\freefire-tournament-platform\frontend <-- React app
- *  C:\freefire-tournament-platform\frontend\build <-- npm run build output
- *
- * So we go one level up (..) from backend, then into frontend/build.
- */
-const frontendBuildPath = path.join(process.cwd(), "..", "frontend", "build");
-app.use(express.static(frontendBuildPath));
-
-/* ---------------- API 404 ---------------- */
+/* ---------- API 404 ---------- */
 app.use("/api", (req, res) => {
   res.status(404).json({ message: "API route not found" });
 });
 
-/* ---------------- FRONTEND FALLBACK ---------------- */
-app.get("*", (req, res) => {
-  try {
-    return res.sendFile(path.join(frontendBuildPath, "index.html"));
-  } catch {
-    return res.status(404).json({ message: "Not found" });
-  }
-});
-
-/* ---------------- ERROR HANDLER ---------------- */
+/* ---------- ERROR HANDLER ---------- */
 app.use((err, req, res, next) => {
-  console.error("UNHANDLED ERROR:", err?.stack || err);
-
-  const status = err.status || err.statusCode || 500;
-  const message =
-    process.env.NODE_ENV === "production"
-      ? "Internal server error"
-      : err.message || "Internal server error";
-
-  if (Array.isArray(err.errors)) {
-    return res.status(status).json({
-      message,
-      errors: err.errors,
-    });
-  }
-
-  return res.status(status).json({ message });
+  console.error("ERROR:", err);
+  res.status(500).json({ message: "Internal server error" });
 });
 
 export default app;
