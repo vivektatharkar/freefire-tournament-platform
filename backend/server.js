@@ -1,34 +1,42 @@
-// backend/server.js
-import http from "http";
-import dotenv from "dotenv";
-import app from "./app.js";
-import models from "./models/index.js";
+// server.js (or index.js)
 
-dotenv.config();
+const express = require("express");
+const cors = require("cors");
+const bodyParser = require("body-parser");
 
-const { sequelize } = models;
+const app = express();
 const PORT = process.env.PORT || 5000;
 
-async function start() {
-  try {
-    console.log("Connecting to database...");
-    await sequelize.authenticate();
-    console.log("Database connected.");
+// Middlewares
+app.use(cors());
+app.use(bodyParser.json());
 
-    if (process.env.DB_SYNC === "true") {
-      console.log("Syncing database...");
-      await sequelize.sync({ alter: true });
-      console.log("Database sync complete.");
+// POST /api/verify/send-email  <-- this is what your frontend is calling
+app.post("/api/verify/send-email", async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({ message: "Email is required" });
     }
 
-    const server = http.createServer(app);
-    server.listen(PORT, () => {
-      console.log(`Server running on port ${PORT}`);
-    });
-  } catch (err) {
-    console.error("Failed to start server:", err);
-    process.exit(1);
-  }
-}
+    // TODO: generate OTP and send email here
+    // Example:
+    // const otp = Math.floor(100000 + Math.random() * 900000);
+    // await sendOtpMail(email, otp);
 
-start();
+    return res.status(200).json({ message: "OTP sent successfully" });
+  } catch (err) {
+    console.error("send-email error:", err);
+    return res.status(500).json({ message: "Failed to send OTP" });
+  }
+});
+
+// Optional: health route
+app.get("/", (req, res) => {
+  res.send("API is running");
+});
+
+app.listen(PORT, () => {
+  console.log(`Server listening on port ${PORT}`);
+});
