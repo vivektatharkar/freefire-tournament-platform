@@ -75,7 +75,7 @@ const inputStyle = {
   width: "100%",
   padding: "9px 11px",
   borderRadius: 10,
-  border: "1px solid "#4b5563",
+  border: "1px solid #4b5563", // fixed
   backgroundColor: "#020617",
   color: "#f9fafb",
   fontSize: 14,
