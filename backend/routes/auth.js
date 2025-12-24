@@ -8,7 +8,7 @@ import { User } from "../models/index.js";
 const router = express.Router();
 
 /* ------------------------------------------------------------------ */
-/*  HELPER: create email transporter (same env as signup OTP emails)  */
+/*  HELPER: create email transporter                                  */
 /* ------------------------------------------------------------------ */
 function createMailer() {
   const host = process.env.SMTP_HOST || "smtp.gmail.com";
@@ -39,7 +39,7 @@ function createMailer() {
 }
 
 /* ------------------------------------------------------------------ */
-/*  SIGNUP (frontend already ensured email OTP is verified)           */
+/*  SIGNUP                                                            */
 /*  POST /api/auth/signup                                             */
 /* ------------------------------------------------------------------ */
 router.post("/signup", async (req, res) => {
@@ -86,11 +86,9 @@ router.post("/signup", async (req, res) => {
       email,
       phone: phone || null,
       password_hash: hash,
-      // ✅ init game_id as empty string
       game_id: "",
     });
 
-    // ✅ include role in token so adminOnly works
     const token = jwt.sign(
       { id: user.id, role: user.role },
       process.env.JWT_SECRET || "supersecret",
@@ -119,8 +117,8 @@ router.post("/signup", async (req, res) => {
 });
 
 /* ------------------------------------------------------------------ */
-/*  LOGIN                                                              */
-/*  POST /api/auth/login                                               */
+/*  LOGIN                                                             */
+/*  POST /api/auth/login                                              */
 /* ------------------------------------------------------------------ */
 router.post("/login", async (req, res) => {
   try {
@@ -144,7 +142,6 @@ router.post("/login", async (req, res) => {
       return res.status(400).json({ message: "Invalid email or password" });
     }
 
-    // ✅ include role so adminOnly can see admin
     const token = jwt.sign(
       { id: user.id, role: user.role },
       process.env.JWT_SECRET || "supersecret",
@@ -182,7 +179,6 @@ const RESET_TOKENS = new Map();
 /**
  * POST /api/auth/forgot-start
  * Body: { email }
- * Sends an OTP to the given email (if user exists).
  */
 router.post("/forgot-start", async (req, res) => {
   try {
@@ -211,7 +207,9 @@ router.post("/forgot-start", async (req, res) => {
           from: process.env.SMTP_USER,
           to: email,
           subject: "Password reset OTP - Freefire Tournament",
-          text: `Your OTP to reset your password is: ${code}\n\nThis code is valid for 10 minutes.`,
+          text: `Your OTP to reset your password is: ${code}
+
+This code is valid for 10 minutes.`,
         });
         console.log(`[RESET EMAIL OTP] to ${email}: ${code}`);
         return res.json({ message: "Reset OTP sent to your email" });
@@ -239,7 +237,6 @@ router.post("/forgot-start", async (req, res) => {
 /**
  * POST /api/auth/forgot-complete
  * Body: { email, code, newPassword }
- * Verifies OTP and updates password_hash.
  */
 router.post("/forgot-complete", async (req, res) => {
   try {
