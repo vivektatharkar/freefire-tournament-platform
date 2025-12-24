@@ -1,3 +1,4 @@
+// backend/app.js
 import express from "express";
 import cors from "cors";
 import helmet from "helmet";
@@ -41,7 +42,7 @@ app.use(helmet());
 /* ---------- CORS ---------- */
 app.use(
   cors({
-    origin: process.env.FRONTEND_URL, // REQUIRED
+    origin: process.env.FRONTEND_URL, // e.g. https://your-frontend.onrender.com
     credentials: true,
   })
 );
