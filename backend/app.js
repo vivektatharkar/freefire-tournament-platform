@@ -1,4 +1,3 @@
-// backend/app.js
 import express from "express";
 import cors from "cors";
 import helmet from "helmet";
@@ -34,11 +33,7 @@ import notificationRoutes from "./routes/notifications.js";
 const app = express();
 
 /* ---------- LOGGING ---------- */
-app.use(
-  process.env.NODE_ENV === "production"
-    ? morgan("combined")
-    : morgan("dev")
-);
+app.use(morgan("combined"));
 
 /* ---------- SECURITY ---------- */
 app.use(helmet());
@@ -53,7 +48,7 @@ app.use(
 
 /* ---------- PARSERS ---------- */
 app.use(express.json({ limit: "2mb" }));
-app.use(express.urlencoded({ extended: true }));
+app.use(express.urlencoded({ extended: true, limit: "2mb" }));
 app.use(cookieParser());
 
 /* ---------- HEALTH ---------- */
@@ -61,7 +56,7 @@ app.get("/api/health", (req, res) => {
   res.json({ status: "OK", time: new Date().toISOString() });
 });
 
-/* ---------- PUBLIC API ---------- */
+/* ---------- PUBLIC APIs ---------- */
 app.use("/api/auth", authRoutes);
 app.use("/api/verify", verifyRoutes);
 app.use("/api/users", usersRoutes);
@@ -72,7 +67,7 @@ app.use("/api/b2b", b2bRoutes);
 app.use("/api/cs", csRoutes);
 app.use("/api/headshot", headshotRoutes);
 
-/* ---------- ADMIN API ---------- */
+/* ---------- ADMIN APIs ---------- */
 app.use("/api/admin", adminWithdrawalsRoutes);
 app.use("/api/admin", adminHeadshotRoutes);
 app.use("/api/admin", adminTournamentRoutes);
@@ -89,7 +84,7 @@ app.use("/api", (req, res) => {
   res.status(404).json({ message: "API route not found" });
 });
 
-/* ---------- ERROR HANDLER ---------- */
+/* ---------- GLOBAL ERROR ---------- */
 app.use((err, req, res, next) => {
   console.error("ERROR:", err);
   res.status(500).json({ message: "Internal server error" });
