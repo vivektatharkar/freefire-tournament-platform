@@ -1,16 +1,10 @@
 // backend/server.js
 import http from "http";
-import path from "path";
-import { fileURLToPath } from "url";
 import dotenv from "dotenv";
 import app from "./app.js";
 import models from "./models/index.js";
 
 dotenv.config();
-
-// ES modules helper
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 const { sequelize } = models;
 const PORT = process.env.PORT || 5000;
