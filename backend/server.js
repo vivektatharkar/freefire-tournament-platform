@@ -1,39 +1,33 @@
 // backend/server.js
-
-import express from "express";
-import cors from "cors";
+import http from "http";
 import dotenv from "dotenv";
-import path from "path";
-import { fileURLToPath } from "url";
+import app from "./app.js";
+import models from "./models/index.js";
 
-// If you need __dirname / __filename in ES modules:
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-// Load environment variables from .env (if you use it)
 dotenv.config();
 
-const app = express();
+const { sequelize } = models;
 const PORT = process.env.PORT || 5000;
 
-// Middlewares
-app.use(cors());
-app.use(express.json());
+async function start() {
+  try {
+    console.log("Connecting to database...");
+    await sequelize.authenticate();
+    console.log("Database connected.");
 
-// Example API route
-app.get("/api/health", (req, res) => {
-  res.json({ status: "ok" });
-});
+    if (process.env.DB_SYNC === "true") {
+      console.log("Syncing database...");
+      await sequelize.sync({ alter: true });
+      console.log("Database sync complete.");
+    }
 
-// If you serve frontend build from backend (adjust path as needed)
-const frontendPath = path.join(__dirname, "..", "frontend", "dist");
-app.use(express.static(frontendPath));
+    http.createServer(app).listen(PORT, () => {
+      console.log(`Server running on port ${PORT}`);
+    });
+  } catch (err) {
+    console.error("Failed to start server:", err);
+    process.exit(1);
+  }
+}
 
-app.get("*", (req, res) => {
-  res.sendFile(path.join(frontendPath, "index.html"));
-});
-
-// Start server
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
+start();
