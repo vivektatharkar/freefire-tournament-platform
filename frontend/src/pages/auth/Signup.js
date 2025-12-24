@@ -4,9 +4,7 @@ import axios from "axios";
 import { useNavigate, Link } from "react-router-dom";
 import bg from "../../assets/bg.jpg";
 
-// Use env var so localhost is only used in local dev
-const API_BASE =
-  process.env.REACT_APP_API_BASE || "http://localhost:5000";
+const API_BASE = "https://your-backend.onrender.com";
 
 const pageStyle = {
   minHeight: "100vh",
@@ -77,7 +75,7 @@ const inputStyle = {
   width: "100%",
   padding: "9px 11px",
   borderRadius: 10,
-  border: "1px solid #4b5563",
+  border: "1px solid "#4b5563",
   backgroundColor: "#020617",
   color: "#f9fafb",
   fontSize: 14,
