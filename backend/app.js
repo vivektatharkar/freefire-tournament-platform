@@ -1,4 +1,3 @@
-// backend/app.js
 import express from "express";
 import cors from "cors";
 import helmet from "helmet";
@@ -8,7 +7,7 @@ import dotenv from "dotenv";
 
 dotenv.config();
 
-// routes
+/* ---------------- ROUTES ---------------- */
 import authRoutes from "./routes/auth.js";
 import verifyRoutes from "./routes/verification.js";
 import usersRoutes from "./routes/users.js";
@@ -33,31 +32,31 @@ import notificationRoutes from "./routes/notifications.js";
 
 const app = express();
 
-/* ---------- LOGGING ---------- */
+/* ---------------- LOGGING ---------------- */
 app.use(morgan("combined"));
 
-/* ---------- SECURITY ---------- */
+/* ---------------- SECURITY ---------------- */
 app.use(helmet());
 
-/* ---------- CORS ---------- */
+/* ---------------- CORS ---------------- */
 app.use(
   cors({
-    origin: process.env.FRONTEND_URL, // e.g. https://your-frontend.onrender.com
+    origin: process.env.FRONTEND_URL, // VERY IMPORTANT
     credentials: true,
   })
 );
 
-/* ---------- PARSERS ---------- */
-app.use(express.json({ limit: "2mb" }));
-app.use(express.urlencoded({ extended: true, limit: "2mb" }));
+/* ---------------- MIDDLEWARES ---------------- */
 app.use(cookieParser());
+app.use(express.json({ limit: "2mb" }));
+app.use(express.urlencoded({ extended: true }));
 
-/* ---------- HEALTH ---------- */
+/* ---------------- HEALTH CHECK ---------------- */
 app.get("/api/health", (req, res) => {
   res.json({ status: "OK", time: new Date().toISOString() });
 });
 
-/* ---------- PUBLIC APIs ---------- */
+/* ---------------- PUBLIC APIs ---------------- */
 app.use("/api/auth", authRoutes);
 app.use("/api/verify", verifyRoutes);
 app.use("/api/users", usersRoutes);
@@ -68,7 +67,7 @@ app.use("/api/b2b", b2bRoutes);
 app.use("/api/cs", csRoutes);
 app.use("/api/headshot", headshotRoutes);
 
-/* ---------- ADMIN APIs ---------- */
+/* ---------------- ADMIN APIs ---------------- */
 app.use("/api/admin", adminWithdrawalsRoutes);
 app.use("/api/admin", adminHeadshotRoutes);
 app.use("/api/admin", adminTournamentRoutes);
@@ -77,18 +76,21 @@ app.use("/api/admin", adminCsRoutes);
 app.use("/api/admin/users", adminUsersRouter);
 app.use("/api/admin", adminPaymentsRouter);
 
-/* ---------- NOTIFICATIONS ---------- */
+/* ---------------- NOTIFICATIONS ---------------- */
 app.use("/api/notifications", notificationRoutes);
 
-/* ---------- API 404 ---------- */
+/* ---------------- API 404 ---------------- */
 app.use("/api", (req, res) => {
   res.status(404).json({ message: "API route not found" });
 });
 
-/* ---------- GLOBAL ERROR ---------- */
+/* ---------------- GLOBAL ERROR HANDLER ---------------- */
 app.use((err, req, res, next) => {
-  console.error("ERROR:", err);
-  res.status(500).json({ message: "Internal server error" });
+  console.error("UNHANDLED ERROR:", err);
+
+  res.status(500).json({
+    message: "Internal server error",
+  });
 });
 
 export default app;
