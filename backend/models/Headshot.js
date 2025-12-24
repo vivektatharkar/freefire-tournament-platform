@@ -16,30 +16,36 @@ const Headshot = sequelize.define(
       allowNull: false,
       defaultValue: "",
     },
+
     date: {
       type: DataTypes.DATE,
       allowNull: true,
     },
+
     entry_fee: {
       type: DataTypes.DECIMAL(10, 2),
       allowNull: false,
       defaultValue: 0.0,
     },
+
     prize_pool: {
       type: DataTypes.DECIMAL(10, 2),
       allowNull: false,
       defaultValue: 0.0,
     },
+
     slots: {
       type: DataTypes.INTEGER,
       allowNull: false,
       defaultValue: 100,
     },
+
     status: {
       type: DataTypes.ENUM("upcoming", "ongoing", "completed"),
       allowNull: false,
       defaultValue: "upcoming",
     },
+
     description: {
       type: DataTypes.TEXT,
       allowNull: true,
@@ -49,26 +55,27 @@ const Headshot = sequelize.define(
       type: DataTypes.STRING,
       allowNull: true,
     },
+
     room_password: {
       type: DataTypes.STRING,
       allowNull: true,
     },
 
-    // existing identifiers
     team_a_id: {
       type: DataTypes.STRING,
       allowNull: true,
     },
+
     team_b_id: {
       type: DataTypes.STRING,
       allowNull: true,
     },
 
-    // NEW: display names
     team_a_name: {
       type: DataTypes.STRING,
       allowNull: true,
     },
+
     team_b_name: {
       type: DataTypes.STRING,
       allowNull: true,

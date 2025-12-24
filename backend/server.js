@@ -38,7 +38,11 @@ async function start() {
     const server = http.createServer(app);
 
     server.listen(PORT, () => {
-      console.log(`Server listening on port ${PORT} (env=${process.env.NODE_ENV || "development"})`);
+      console.log(
+        `Server listening on port ${PORT} (env=${
+          process.env.NODE_ENV || "development"
+        })`
+      );
     });
 
     // Optional graceful shutdown handlers

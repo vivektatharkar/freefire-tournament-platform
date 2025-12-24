@@ -3,8 +3,7 @@
 // Fixes: avoids calling ES6 Model classes as functions (prevents "Class constructor model cannot be invoked without 'new'")
 // Expects backend/config/db.js to export a Sequelize instance (default export).
 
-import sequelize from "../config/db.js"; // path fixed
-import { Sequelize } from "sequelize";
+import sequelize, { Sequelize } from "../config/db.js";
 
 // Import model modules from same folder
 import UserModule from "./User.js";
@@ -22,7 +21,11 @@ import NotificationModule from "./Notification.js";
  */
 function isModelClass(obj) {
   try {
-    return typeof obj === "function" && obj.prototype && obj.prototype instanceof Sequelize.Model;
+    return (
+      typeof obj === "function" &&
+      obj.prototype &&
+      obj.prototype instanceof Sequelize.Model
+    );
   } catch (e) {
     return false;
   }
@@ -51,7 +54,10 @@ function instantiate(modelImport) {
     // Otherwise assume it's already a model instance and return it
     return modelImport;
   } catch (err) {
-    console.warn("Model instantiate warning:", err && err.message ? err.message : err);
+    console.warn(
+      "Model instantiate warning:",
+      err && err.message ? err.message : err
+    );
     return modelImport;
   }
 }
@@ -71,41 +77,69 @@ function tryAssociate(fn, description) {
   try {
     fn();
   } catch (err) {
-    console.warn(`Skipping association (${description}):`, err && err.message ? err.message : err);
+    console.warn(
+      `Skipping association (${description}):`,
+      err && err.message ? err.message : err
+    );
   }
 }
 
 // Setup associations (guarded)
 tryAssociate(() => {
-  if (Tournament && Participation && typeof Tournament.hasMany === "function" && typeof Participation.belongsTo === "function") {
+  if (
+    Tournament &&
+    Participation &&
+    typeof Tournament.hasMany === "function" &&
+    typeof Participation.belongsTo === "function"
+  ) {
     Tournament.hasMany(Participation, { foreignKey: "tournament_id" });
     Participation.belongsTo(Tournament, { foreignKey: "tournament_id" });
   }
 }, "Tournament <-> Participation");
 
 tryAssociate(() => {
-  if (User && Participation && typeof User.hasMany === "function" && typeof Participation.belongsTo === "function") {
+  if (
+    User &&
+    Participation &&
+    typeof User.hasMany === "function" &&
+    typeof Participation.belongsTo === "function"
+  ) {
     User.hasMany(Participation, { foreignKey: "user_id" });
     Participation.belongsTo(User, { foreignKey: "user_id" });
   }
 }, "User <-> Participation");
 
 tryAssociate(() => {
-  if (User && Payment && typeof User.hasMany === "function" && typeof Payment.belongsTo === "function") {
+  if (
+    User &&
+    Payment &&
+    typeof User.hasMany === "function" &&
+    typeof Payment.belongsTo === "function"
+  ) {
     User.hasMany(Payment, { foreignKey: "user_id" });
     Payment.belongsTo(User, { foreignKey: "user_id" });
   }
 }, "User <-> Payment");
 
 tryAssociate(() => {
-  if (Tournament && Payment && typeof Tournament.hasMany === "function" && typeof Payment.belongsTo === "function") {
+  if (
+    Tournament &&
+    Payment &&
+    typeof Tournament.hasMany === "function" &&
+    typeof Payment.belongsTo === "function"
+  ) {
     Tournament.hasMany(Payment, { foreignKey: "tournament_id" });
     Payment.belongsTo(Tournament, { foreignKey: "tournament_id" });
   }
 }, "Tournament <-> Payment");
 
 tryAssociate(() => {
-  if (User && Notification && typeof User.hasMany === "function" && typeof Notification.belongsTo === "function") {
+  if (
+    User &&
+    Notification &&
+    typeof User.hasMany === "function" &&
+    typeof Notification.belongsTo === "function"
+  ) {
     User.hasMany(Notification, { foreignKey: "user_id" });
     Notification.belongsTo(User, { foreignKey: "user_id" });
   }

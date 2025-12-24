@@ -1,4 +1,5 @@
-import sequelize from "./config/database.js";
+// test-db.js (for example)
+import sequelize from "./config/db.js";
 
 async function testConnection() {
   try {

@@ -67,7 +67,6 @@ const Payment = sequelize.define(
       allowNull: true,
     },
 
-    // ✅ THIS IS THE LINE YOU ASKED ABOUT
     upi_id: {
       type: DataTypes.STRING(255),
       allowNull: true,

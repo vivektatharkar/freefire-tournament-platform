@@ -4,7 +4,7 @@ export default function (sequelize, DataTypes) {
     "user",
     {
       id: {
-        type: DataTypes.INTEGER.UNSIGNED,
+        type: DataTypes.INTEGER, // INTEGER works fine on Postgres
         autoIncrement: true,
         primaryKey: true,
       },
@@ -19,7 +19,7 @@ export default function (sequelize, DataTypes) {
       // store hashed password here
       password_hash: { type: DataTypes.STRING(255), allowNull: false },
 
-      // ✅ Freefire / game ID field (you already have this column in DB)
+      // Freefire / game ID field
       game_id: {
         type: DataTypes.STRING(50),
         allowNull: true,
@@ -40,8 +40,8 @@ export default function (sequelize, DataTypes) {
     },
     {
       tableName: "users",
-      underscored: true, // maps created_at / updated_at
-      timestamps: true,  // uses created_at / updated_at
+      underscored: true,
+      timestamps: true,
     }
   );
 }

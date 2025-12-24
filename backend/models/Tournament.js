@@ -26,8 +26,6 @@ const Tournament = sequelize.define(
       defaultValue: 0.0,
     },
 
-    // 👇 IMPORTANT: use the SAME NAME as in your DB: price_pool
-    // If your column is spelled slightly different, change just this key.
     price_pool: {
       type: DataTypes.DECIMAL(10, 2),
       defaultValue: 0.0,
@@ -48,7 +46,6 @@ const Tournament = sequelize.define(
       allowNull: true,
     },
 
-    // room details (these columns already exist in your table)
     room_id: {
       type: DataTypes.STRING,
       allowNull: true,

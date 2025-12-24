@@ -16,30 +16,36 @@ const B2BMatch = sequelize.define(
       allowNull: false,
       defaultValue: "",
     },
+
     date: {
       type: DataTypes.DATE,
       allowNull: true,
     },
+
     entry_fee: {
       type: DataTypes.DECIMAL(10, 2),
       allowNull: false,
       defaultValue: 0.0,
     },
+
     prize_pool: {
       type: DataTypes.DECIMAL(10, 2),
       allowNull: false,
       defaultValue: 0.0,
     },
+
     slots: {
       type: DataTypes.INTEGER,
       allowNull: false,
       defaultValue: 100,
     },
+
     status: {
       type: DataTypes.ENUM("upcoming", "ongoing", "completed"),
       allowNull: false,
       defaultValue: "upcoming",
     },
+
     description: {
       type: DataTypes.TEXT,
       allowNull: true,
@@ -49,6 +55,7 @@ const B2BMatch = sequelize.define(
       type: DataTypes.STRING,
       allowNull: true,
     },
+
     room_password: {
       type: DataTypes.STRING,
       allowNull: true,
