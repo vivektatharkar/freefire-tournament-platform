@@ -5,65 +5,66 @@ import nodemailer from "nodemailer";
 
 const router = express.Router();
 
-// In-memory store: { [email]: { otpHash, expires } }
+// In-memory OTP store
+// { email: { otpHash, expiresAt } }
 const EMAIL_OTP_STORE = Object.create(null);
 
-function sha(str) {
-  return crypto.createHash("sha256").update(String(str)).digest("hex");
-}
+/* ---------------- HELPERS ---------------- */
 
-function generateOtp() {
-  return String(Math.floor(100000 + Math.random() * 900000)); // 6-digit
-}
+const hash = (val) =>
+  crypto.createHash("sha256").update(String(val)).digest("hex");
 
-function createTransport() {
-  const host = process.env.SMTP_HOST;
-  const port = Number(process.env.SMTP_PORT || 587);
-  const user = process.env.SMTP_USER;
-  const pass = process.env.SMTP_PASS;
+const generateOtp = () =>
+  String(Math.floor(100000 + Math.random() * 900000)); // 6 digit
 
-  console.log("OTP EMAIL ENV:", {
-    host,
-    port: String(port),
-    user,
-    pass: pass ? "***set***" : "",
-  });
+function createTransporter() {
+  const {
+    SMTP_HOST,
+    SMTP_PORT,
+    SMTP_USER,
+    SMTP_PASS,
+  } = process.env;
 
-  if (!host || !user || !pass) {
-    console.log(
-      "OTP EMAIL: DEV MODE (no SMTP_HOST / SMTP_USER / SMTP_PASS). OTP only printed in console."
+  if (!SMTP_HOST || !SMTP_USER || !SMTP_PASS) {
+    console.warn(
+      "⚠️ SMTP not configured. OTP will NOT be emailed."
     );
-    return null; // dev mode
+    return null;
   }
 
   return nodemailer.createTransport({
-    host,
-    port,
-    secure: port === 465,
-    auth: { user, pass },
+    host: SMTP_HOST,
+    port: Number(SMTP_PORT || 587),
+    secure: Number(SMTP_PORT) === 465,
+    auth: {
+      user: SMTP_USER,
+      pass: SMTP_PASS,
+    },
   });
 }
 
-/**
- * POST /api/verify/send-email
- * body: { email }
- */
+/* ---------------- SEND OTP ---------------- */
+
 router.post("/send-email", async (req, res) => {
   try {
     const email = String(req.body.email || "").trim().toLowerCase();
-    if (!email) return res.status(400).json({ message: "Email is required" });
+    if (!email) {
+      return res.status(400).json({ message: "Email is required" });
+    }
 
     const otp = generateOtp();
+
     EMAIL_OTP_STORE[email] = {
-      otpHash: sha(otp),
-      expires: Date.now() + 5 * 60 * 1000, // 5 minutes
+      otpHash: hash(otp),
+      expiresAt: Date.now() + 5 * 60 * 1000, // 5 min
     };
 
-    const transporter = createTransport();
+    const transporter = createTransporter();
+
     if (!transporter) {
-      console.log(`[EMAIL OTP] to ${email}: ${otp}`);
+      console.log(`[DEV OTP] ${email} → ${otp}`);
       return res.json({
-        message: "Email OTP sent (dev). Check backend console or real email.",
+        message: "OTP generated (dev mode). Check backend console.",
       });
     }
 
@@ -76,20 +77,20 @@ router.post("/send-email", async (req, res) => {
       text: `Your OTP is ${otp}. It expires in 5 minutes.`,
     });
 
-    console.log(`[EMAIL OTP] to ${email}: ${otp}`);
-    return res.json({ message: "Email OTP sent." });
+    console.log(`[EMAIL OTP SENT] ${email}`);
+    return res.json({ message: "OTP sent successfully" });
+
   } catch (err) {
-    console.error("send-email error:", err);
-    return res
-      .status(500)
-      .json({ message: "Failed to send OTP", error: err.message });
+    console.error("OTP SEND ERROR:", err);
+    return res.status(500).json({
+      message: "Failed to send OTP",
+      error: err.message,
+    });
   }
 });
 
-/**
- * POST /api/verify/confirm-email
- * body: { email, otp }
- */
+/* ---------------- VERIFY OTP ---------------- */
+
 router.post("/confirm-email", (req, res) => {
   try {
     const email = String(req.body.email || "").trim().toLowerCase();
@@ -101,27 +102,29 @@ router.post("/confirm-email", (req, res) => {
         .json({ message: "Email and OTP are required" });
     }
 
-    const rec = EMAIL_OTP_STORE[email];
-    if (!rec) {
+    const record = EMAIL_OTP_STORE[email];
+    if (!record) {
       return res.status(400).json({ message: "OTP expired or not found" });
     }
 
-    if (Date.now() > rec.expires) {
+    if (Date.now() > record.expiresAt) {
       delete EMAIL_OTP_STORE[email];
-      return res.status(400).json({ message: "OTP expired or not found" });
+      return res.status(400).json({ message: "OTP expired" });
     }
 
-    if (sha(otp) !== rec.otpHash) {
+    if (hash(otp) !== record.otpHash) {
       return res.status(400).json({ message: "Invalid OTP" });
     }
 
     delete EMAIL_OTP_STORE[email];
-    return res.json({ message: "Email verified" });
+    return res.json({ message: "Email verified successfully" });
+
   } catch (err) {
-    console.error("confirm-email error:", err);
-    return res
-      .status(500)
-      .json({ message: "Failed to verify OTP", error: err.message });
+    console.error("OTP VERIFY ERROR:", err);
+    return res.status(500).json({
+      message: "Failed to verify OTP",
+      error: err.message,
+    });
   }
 });
 
