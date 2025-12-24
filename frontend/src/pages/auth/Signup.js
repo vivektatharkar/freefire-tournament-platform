@@ -4,6 +4,10 @@ import axios from "axios";
 import { useNavigate, Link } from "react-router-dom";
 import bg from "../../assets/bg.jpg";
 
+// Use env var so localhost is only used in local dev
+const API_BASE =
+  process.env.REACT_APP_API_BASE || "http://localhost:5000";
+
 const pageStyle = {
   minHeight: "100vh",
   margin: 0,
@@ -123,11 +127,6 @@ const linkStyle = {
   textDecoration: "none",
   fontWeight: 500,
 };
-
-// IMPORTANT: this points to your backend.
-// In local dev with backend on port 5000, this is fine.
-// In production you probably need to change this to your deployed API URL.
-const API_BASE = "http://localhost:5000";
 
 export default function Signup() {
   const [name, setName] = useState("");
