@@ -1,4 +1,4 @@
-//frontend/src/pages/auth/Signup.js
+// frontend/src/pages/auth/Signup.js
 import React, { useState } from "react";
 import axios from "axios";
 import { useNavigate, Link } from "react-router-dom";
@@ -63,10 +63,12 @@ const msgBase = {
   fontSize: 13,
   textAlign: "center",
 };
+
 const msgError = { ...msgBase, backgroundColor: "#fee2e2", color: "#b91c1c" };
 const msgSuccess = { ...msgBase, backgroundColor: "#dcfce7", color: "#166534" };
 
 const labelStyle = { fontSize: 13, marginBottom: 4, display: "block" };
+
 const inputStyle = {
   width: "100%",
   padding: "9px 11px",
@@ -85,6 +87,7 @@ const otpRow = {
 };
 
 const otpInputStyle = { ...inputStyle, flex: 1 };
+
 const smallBtn = {
   padding: "8px 12px",
   borderRadius: 999,
@@ -121,6 +124,9 @@ const linkStyle = {
   fontWeight: 500,
 };
 
+// IMPORTANT: this points to your backend.
+// In local dev with backend on port 5000, this is fine.
+// In production you probably need to change this to your deployed API URL.
 const API_BASE = "http://localhost:5000";
 
 export default function Signup() {
@@ -131,7 +137,7 @@ export default function Signup() {
 
   const [emailOtp, setEmailOtp] = useState("");
   const [emailVerified, setEmailVerified] = useState(false);
-  const [verificationToken, setVerificationToken] = useState(""); // NEW
+  const [verificationToken, setVerificationToken] = useState("");
 
   const [msg, setMsg] = useState("");
   const [isError, setIsError] = useState(false);
@@ -145,18 +151,16 @@ export default function Signup() {
     setIsError(isErr);
   };
 
-  // when email changes, require verification again
   const handleEmailChange = (e) => {
     setEmail(e.target.value);
     setEmailVerified(false);
     setEmailOtp("");
-    setVerificationToken(""); // clear old token when email changes
+    setVerificationToken("");
   };
 
-  // PHONE: only digits, max 10
   const handlePhoneChange = (e) => {
     const raw = e.target.value;
-    const digitsOnly = raw.replace(/\D/g, "").slice(0, 10);
+    const digitsOnly = raw.replace(/D/g, "").slice(0, 10);
     setPhone(digitsOnly);
   };
 
@@ -173,8 +177,10 @@ export default function Signup() {
       const res = await axios.post(`${API_BASE}/api/verify/send-email`, {
         email,
       });
+
       setEmailVerified(false);
       setVerificationToken("");
+
       setMessage(
         res.data.message ||
           "OTP sent to your email. Please check inbox/spam.",
@@ -206,7 +212,6 @@ export default function Signup() {
         otp: emailOtp,
       });
 
-      // backend should return verification_token
       const tokenFromServer = res.data.verification_token;
       if (!tokenFromServer) {
         console.warn("No verification_token in response:", res.data);
@@ -257,7 +262,7 @@ export default function Signup() {
         email,
         phone,
         password,
-        verification_token: verificationToken, // IMPORTANT
+        verification_token: verificationToken,
       });
 
       setMessage(res.data.message || "Signup successful", false);
@@ -308,11 +313,10 @@ export default function Signup() {
             value={email}
             onChange={handleEmailChange}
             placeholder="you@example.com"
-            disabled={emailVerified} // lock after verified
+            disabled={emailVerified}
           />
         </div>
 
-        {/* Email OTP area - hidden after verified */}
         {!emailVerified && (
           <div>
             <label style={labelStyle}>Email OTP</label>
