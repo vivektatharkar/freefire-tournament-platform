@@ -1,3 +1,4 @@
+// backend/app.js
 import express from "express";
 import cors from "cors";
 import helmet from "helmet";
@@ -7,7 +8,7 @@ import dotenv from "dotenv";
 
 dotenv.config();
 
-/* ---------------- ROUTES ---------------- */
+// routes
 import authRoutes from "./routes/auth.js";
 import verifyRoutes from "./routes/verification.js";
 import usersRoutes from "./routes/users.js";
@@ -17,6 +18,7 @@ import b2bRoutes from "./routes/b2b.js";
 import csRoutes from "./routes/cs.js";
 import headshotRoutes from "./routes/headshot.js";
 import walletRoutes from "./routes/wallet.js";
+import notificationRoutes from "./routes/notifications.js";
 
 // admin
 import adminWithdrawalsRoutes from "./routes/adminWithdrawals.js";
@@ -27,13 +29,10 @@ import adminCsRoutes from "./routes/adminCsRoutes.js";
 import adminUsersRouter from "./routes/adminUsers.js";
 import adminPaymentsRouter from "./routes/adminPayments.js";
 
-// notifications
-import notificationRoutes from "./routes/notifications.js";
-
 const app = express();
 
 /* ---------------- LOGGING ---------------- */
-app.use(morgan("combined"));
+app.use(morgan("dev"));
 
 /* ---------------- SECURITY ---------------- */
 app.use(helmet());
@@ -41,22 +40,22 @@ app.use(helmet());
 /* ---------------- CORS ---------------- */
 app.use(
   cors({
-    origin: process.env.FRONTEND_URL, // VERY IMPORTANT
+    origin: process.env.FRONTEND_URL,
     credentials: true,
   })
 );
 
-/* ---------------- MIDDLEWARES ---------------- */
-app.use(cookieParser());
+/* ---------------- PARSERS ---------------- */
 app.use(express.json({ limit: "2mb" }));
-app.use(express.urlencoded({ extended: true }));
+app.use(express.urlencoded({ extended: true, limit: "2mb" }));
+app.use(cookieParser());
 
-/* ---------------- HEALTH CHECK ---------------- */
+/* ---------------- HEALTH ---------------- */
 app.get("/api/health", (req, res) => {
   res.json({ status: "OK", time: new Date().toISOString() });
 });
 
-/* ---------------- PUBLIC APIs ---------------- */
+/* ---------------- API ROUTES ---------------- */
 app.use("/api/auth", authRoutes);
 app.use("/api/verify", verifyRoutes);
 app.use("/api/users", usersRoutes);
@@ -66,8 +65,9 @@ app.use("/api/tournaments", tournamentsRoutes);
 app.use("/api/b2b", b2bRoutes);
 app.use("/api/cs", csRoutes);
 app.use("/api/headshot", headshotRoutes);
+app.use("/api/notifications", notificationRoutes);
 
-/* ---------------- ADMIN APIs ---------------- */
+/* ---------------- ADMIN ROUTES ---------------- */
 app.use("/api/admin", adminWithdrawalsRoutes);
 app.use("/api/admin", adminHeadshotRoutes);
 app.use("/api/admin", adminTournamentRoutes);
@@ -76,21 +76,15 @@ app.use("/api/admin", adminCsRoutes);
 app.use("/api/admin/users", adminUsersRouter);
 app.use("/api/admin", adminPaymentsRouter);
 
-/* ---------------- NOTIFICATIONS ---------------- */
-app.use("/api/notifications", notificationRoutes);
-
-/* ---------------- API 404 ---------------- */
-app.use("/api", (req, res) => {
+/* ---------------- 404 ---------------- */
+app.use("/api/*", (req, res) => {
   res.status(404).json({ message: "API route not found" });
 });
 
-/* ---------------- GLOBAL ERROR HANDLER ---------------- */
+/* ---------------- ERROR HANDLER ---------------- */
 app.use((err, req, res, next) => {
-  console.error("UNHANDLED ERROR:", err);
-
-  res.status(500).json({
-    message: "Internal server error",
-  });
+  console.error(err);
+  res.status(500).json({ message: "Internal Server Error" });
 });
 
 export default app;
