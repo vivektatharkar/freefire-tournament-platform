@@ -1,13 +1,7 @@
 // controllers/tournamentController.js
 
 import { Op } from "sequelize";
-import { sequelize } from "../models/index.js";
-import {
-  User,
-  Tournament,
-  TournamentParticipant,
-  Payment,
-} from "../models/index.js";
+import { sequelize, User, Tournament, TournamentParticipant, Payment } from "../models/index.js";
 import { notifyUser } from "../utils/notify.js";
 
 /**
@@ -15,7 +9,7 @@ import { notifyUser } from "../utils/notify.js";
  * POST /api/tournaments/:tournamentId/join
  */
 export const joinTournament = async (req, res) => {
-  const userId = req.user.id; // or req.body.user_id depending on your auth
+  const userId = req.user.id;
   const { tournamentId } = req.params;
 
   try {
@@ -50,9 +44,7 @@ export const joinTournament = async (req, res) => {
         throw new Error("User not found");
       }
 
-      const currentBal = Number(
-        userRow.wallet_balance ?? userRow.wallet ?? 0
-      );
+      const currentBal = Number(userRow.wallet_balance ?? userRow.wallet ?? 0);
 
       if (currentBal < entryFee) {
         throw new Error("Insufficient balance");
@@ -69,7 +61,7 @@ export const joinTournament = async (req, res) => {
           user_id: userId,
           tournament_id: tournamentId,
           amount: -entryFee, // negative = debit
-          type: "tournament_join", // used later in admin report
+          type: "tournament_join",
           status: "success",
           description: `Tournament join fee (tournament_id=${tournamentId})`,
           transaction_id: `wallet_debit_${userId}_${Date.now()}`,
@@ -94,7 +86,7 @@ export const joinTournament = async (req, res) => {
         transaction: tx,
       });
 
-      tournament.joined = joinedCount; // or any field that stores total joined
+      tournament.joined = joinedCount;
       await tournament.save({ transaction: tx });
 
       return { payment, participant, newBalance, userRow };
@@ -104,7 +96,9 @@ export const joinTournament = async (req, res) => {
     await notifyUser(
       userId,
       "match_join",
-      `You have successfully joined "${tournament.name}" for ₹${entryFee}.`
+      `You have successfully joined "${tournament.name}" for ₹${Number(
+        tournament.entry_fee || tournament.entryFee || 0
+      )}.`
     );
 
     return res.json({
@@ -121,11 +115,13 @@ export const joinTournament = async (req, res) => {
   }
 };
 
-import { Payment as PaymentModel } from "../models/index.js";
-
+/**
+ * Wallet history for logged‑in user
+ * GET /api/wallet/history
+ */
 export const getWalletHistory = async (req, res) => {
   try {
-    const rows = await PaymentModel.findAll({
+    const rows = await Payment.findAll({
       where: {
         user_id: req.user.id,
         status: "success",

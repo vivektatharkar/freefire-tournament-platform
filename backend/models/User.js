@@ -4,7 +4,7 @@ export default function (sequelize, DataTypes) {
     "user",
     {
       id: {
-        type: DataTypes.INTEGER, // INTEGER works fine on Postgres
+        type: DataTypes.INTEGER.UNSIGNED,
         autoIncrement: true,
         primaryKey: true,
       },
@@ -13,21 +13,19 @@ export default function (sequelize, DataTypes) {
 
       email: { type: DataTypes.STRING(255), allowNull: false, unique: true },
 
-      // phone MUST be string to keep leading zeros
       phone: { type: DataTypes.STRING(50), allowNull: true, defaultValue: null },
 
-      // store hashed password here
       password_hash: { type: DataTypes.STRING(255), allowNull: false },
 
-      // Freefire / game ID field
       game_id: {
         type: DataTypes.STRING(50),
         allowNull: true,
         defaultValue: "",
       },
 
+      // ✅ add superadmin role (does NOT break existing data)
       role: {
-        type: DataTypes.ENUM("user", "admin"),
+        type: DataTypes.ENUM("user", "admin", "superadmin"),
         allowNull: false,
         defaultValue: "user",
       },
@@ -37,6 +35,9 @@ export default function (sequelize, DataTypes) {
         allowNull: false,
         defaultValue: 0.0,
       },
+
+      last_login_at: { type: DataTypes.DATE, allowNull: true, defaultValue: null },
+      last_active_at: { type: DataTypes.DATE, allowNull: true, defaultValue: null },
     },
     {
       tableName: "users",

@@ -32,13 +32,7 @@ const Payment = sequelize.define(
     },
 
     status: {
-      type: DataTypes.ENUM(
-        "pending",
-        "approved",
-        "rejected",
-        "success",
-        "failed"
-      ),
+      type: DataTypes.ENUM("pending", "approved", "rejected", "success", "failed"),
       defaultValue: "pending",
     },
 
@@ -72,6 +66,14 @@ const Payment = sequelize.define(
       allowNull: true,
     },
 
+    // ✅ NEW (optional but recommended): store idempotency for prize payouts
+    // Example: "PRIZE:tournament:12:R1:U55"
+    prize_key: {
+      type: DataTypes.STRING(255),
+      allowNull: true,
+      defaultValue: null,
+    },
+
     description: {
       type: DataTypes.TEXT,
       allowNull: true,
@@ -81,6 +83,16 @@ const Payment = sequelize.define(
     tableName: "payments",
     underscored: true,
     timestamps: true,
+
+    // ✅ Indexes (DB will only get these if you migrate or sync/alter)
+    indexes: [
+      // Helps query history by user quickly
+      { fields: ["user_id"] },
+
+      // Optional: prevent paying the same prize twice
+      // (Only effective after DB migration creates this column + index)
+      { unique: true, fields: ["prize_key"] },
+    ],
   }
 );
 

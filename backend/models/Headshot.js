@@ -1,4 +1,3 @@
-// backend/models/Headshot.js
 import { DataTypes } from "sequelize";
 import sequelize from "../config/db.js";
 
@@ -17,6 +16,12 @@ const Headshot = sequelize.define(
       defaultValue: "",
     },
 
+    // ✅ FIX: add mode (your frontend + routes send mode)
+    mode: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+
     date: {
       type: DataTypes.DATE,
       allowNull: true,
@@ -28,6 +33,7 @@ const Headshot = sequelize.define(
       defaultValue: 0.0,
     },
 
+    // ✅ FIX: keep prize_pool (your frontend sends prize_pool)
     prize_pool: {
       type: DataTypes.DECIMAL(10, 2),
       allowNull: false,
@@ -40,8 +46,10 @@ const Headshot = sequelize.define(
       defaultValue: 100,
     },
 
+    // ✅ FIX: allow the statuses your admin UI uses
+    // (your frontend uses upcoming/live/completed/locked)
     status: {
-      type: DataTypes.ENUM("upcoming", "ongoing", "completed"),
+      type: DataTypes.ENUM("upcoming", "live", "completed", "locked"),
       allowNull: false,
       defaultValue: "upcoming",
     },
@@ -55,7 +63,6 @@ const Headshot = sequelize.define(
       type: DataTypes.STRING,
       allowNull: true,
     },
-
     room_password: {
       type: DataTypes.STRING,
       allowNull: true,
@@ -65,7 +72,6 @@ const Headshot = sequelize.define(
       type: DataTypes.STRING,
       allowNull: true,
     },
-
     team_b_id: {
       type: DataTypes.STRING,
       allowNull: true,
@@ -75,7 +81,6 @@ const Headshot = sequelize.define(
       type: DataTypes.STRING,
       allowNull: true,
     },
-
     team_b_name: {
       type: DataTypes.STRING,
       allowNull: true,

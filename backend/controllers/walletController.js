@@ -9,22 +9,21 @@ export const getWalletHistory = async (req, res) => {
       attributes: [
         "id",
         "amount",
-        "type",        // "credit" | "debit"
-        "status",      // "pending" | "success" | "failed"
+        "type",
+        "status",
         "description",
         "created_at",
       ],
     });
 
-    // Shape expected by frontend
     res.json({
       history: rows.map((r) => ({
         id: r.id,
         amount: r.amount,
         type: r.type,
-        status: r.status,        // will be "pending" / "success" / "failed"
+        status: r.status,
         description: r.description,
-        created_at: r.created_at,
+        created_at: r.created_at || r.createdAt || null,
       })),
     });
   } catch (err) {

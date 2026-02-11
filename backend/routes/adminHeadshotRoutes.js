@@ -4,178 +4,279 @@ import sequelize from "../config/db.js";
 import { auth } from "../middleware/auth.js";
 import isAdmin from "../middleware/isAdmin.js";
 
+import Headshot from "../models/Headshot.js";
+import { User, Participation } from "../models/index.js";
+
 const router = express.Router();
-
-// Helper SELECT
-const selectQuery = (sql, params = []) =>
-  sequelize.query(sql, {
-    replacements: params,
-    type: sequelize.QueryTypes.SELECT,
-  });
-
 const requireAdmin = [auth, isAdmin];
 
-/**
- * IMPORTANT:
- * - headshot table: headshot
- * - join table: headshot_joins (id, match_id, user_id, team_side, ...)
- * - users table must contain column game_id (player game id)
- */
+/* Disable caching for these admin APIs (helps avoid 304 while developing) */
+router.use((req, res, next) => {
+  res.set("Cache-Control", "no-store");
+  res.set("Pragma", "no-cache");
+  next();
+});
 
-// GET all headshot tournaments
+/* ------------ helpers ------------- */
+const normalizeStatus = (status) => {
+  const s = (status || "").toLowerCase();
+  if (s === "upcoming" || s === "live" || s === "completed" || s === "locked")
+    return s;
+  return "upcoming";
+};
+
+const normalizeMode = (mode) => {
+  const m = String(mode || "").trim().toLowerCase();
+  if (!m) return null;
+  // if you only want these 3 modes, enforce it:
+  if (m === "solo" || m === "duo" || m === "squad") return m;
+  return m; // keep any text like "CS" if you want
+};
+
+/* ============ ADMIN HEADSHOT ROUTES ============ */
+
+/**
+ * GET all headshot tournaments
+ * GET /api/admin/headshot
+ */
 router.get("/headshot", requireAdmin, async (req, res) => {
   try {
-    const rows = await selectQuery(
-      `SELECT h.*,
-              COUNT(j.id) AS joined_count
-       FROM headshot h
-       LEFT JOIN headshot_joins j ON j.match_id = h.id
-       GROUP BY h.id
-       ORDER BY h.id DESC`
-    );
-    res.json(rows);
+    const matches = await Headshot.findAll({ order: [["id", "DESC"]] });
+
+    const ids = matches.map((m) => m.id);
+    let countsByMatch = {};
+
+    if (ids.length > 0) {
+      const [rows] = await sequelize.query(
+        `SELECT headshot_id, COUNT(*) AS joined_count
+         FROM participations
+         WHERE headshot_id IN (${ids.map(() => "?").join(",")})
+         GROUP BY headshot_id`,
+        { replacements: ids }
+      );
+
+      rows.forEach((r) => {
+        countsByMatch[r.headshot_id] = Number(r.joined_count) || 0;
+      });
+    }
+
+    const result = matches.map((m) => {
+      const json = m.toJSON();
+
+      json.joined_count = countsByMatch[m.id] || 0;
+
+      // Ensure frontend always receives consistent keys
+      json.mode = json.mode ?? null;
+      json.prize_pool = Number(json.price_pool ?? 0) || 0;
+
+      return json;
+    });
+
+    res.json(result);
   } catch (err) {
-    console.error("admin headshot list error", err);
+    console.error("admin headshot list error", err.message);
     res.status(500).json({ message: "Failed to load headshot tournaments" });
   }
 });
 
-// CREATE headshot tournament
+/**
+ * CREATE headshot tournament
+ * POST /api/admin/headshot
+ */
 router.post("/headshot", requireAdmin, async (req, res) => {
   try {
     const {
       name,
+      mode,
+      map, // fallback if old frontend sends map instead of mode
       entry_fee,
       prize_pool,
-      date,          // expect string from <input type="datetime-local">
+      date,
       slots,
       description,
       status,
     } = req.body;
 
-    const [result, meta] = await sequelize.query(
-      `INSERT INTO headshot
-         (name, entry_fee, prize_pool, date, slots, description, status)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      {
-        replacements: [
-          name,
-          entry_fee,
-          prize_pool,
-          date,        // e.g. "2025-12-21T13:00"
-          slots,
-          description,
-          status || "upcoming",
-        ],
-      }
-    );
+    const safeStatus = normalizeStatus(status);
+    const safeMode = normalizeMode(mode ?? map);
 
-    const insertedId = meta?.insertId ?? result?.insertId ?? null;
-    res.json({ id: insertedId });
+    const match = await Headshot.create({
+      name: name || "",
+      mode: safeMode,
+      entry_fee: parseFloat(entry_fee) || 0,
+      price_pool: parseFloat(prize_pool) || 0,
+      date,
+      slots: parseInt(slots) || 0,
+      description: description || "",
+      status: safeStatus,
+    });
+
+    res.json({ id: match.id, message: "Headshot tournament created" });
   } catch (err) {
-    console.error("admin headshot create error", err);
+    console.error("admin headshot create error:", err.message);
     res.status(500).json({ message: "Failed to create headshot tournament" });
   }
 });
 
-// UPDATE headshot tournament
+/**
+ * UPDATE headshot tournament
+ * PUT /api/admin/headshot/:id
+ */
 router.put("/headshot/:id", requireAdmin, async (req, res) => {
   try {
     const { id } = req.params;
     const {
       name,
+      mode,
+      map, // fallback
       entry_fee,
       prize_pool,
-      date,          // plain string again
+      date,
       slots,
       description,
       status,
     } = req.body;
 
-    await sequelize.query(
-      `UPDATE headshot
-       SET name = ?, entry_fee = ?, prize_pool = ?, date = ?, slots = ?, description = ?, status = ?
-       WHERE id = ?`,
-      {
-        replacements: [
-          name,
-          entry_fee,
-          prize_pool,
-          date,
-          slots,
-          description,
-          status,
-          id,
-        ],
-      }
-    );
+    const safeStatus = normalizeStatus(status);
+    const safeMode = normalizeMode(mode ?? map);
 
-    res.json({ message: "Updated" });
+    const match = await Headshot.findByPk(id);
+    if (!match) return res.status(404).json({ message: "Headshot match not found" });
+
+    match.name = name || "";
+    match.mode = safeMode;
+    match.entry_fee = parseFloat(entry_fee) || 0;
+    match.price_pool = parseFloat(prize_pool) || 0;
+    match.date = date;
+    match.slots = parseInt(slots) || 0;
+    match.description = description || "";
+    match.status = safeStatus;
+
+    await match.save();
+
+    res.json({ message: "Headshot tournament updated" });
   } catch (err) {
-    console.error("admin headshot update error", err);
+    console.error("admin headshot update error:", err.message);
     res.status(500).json({ message: "Failed to update headshot tournament" });
   }
 });
 
-// UPDATE status only
+/**
+ * UPDATE status only
+ * PATCH /api/admin/headshot/:id/status
+ */
 router.patch("/headshot/:id/status", requireAdmin, async (req, res) => {
   try {
     const { id } = req.params;
     const { status } = req.body;
 
-    await sequelize.query(
-      `UPDATE headshot SET status = ? WHERE id = ?`,
-      { replacements: [status, id] }
-    );
+    const safeStatus = normalizeStatus(status);
+
+    const match = await Headshot.findByPk(id);
+    if (!match) return res.status(404).json({ message: "Headshot match not found" });
+
+    match.status = safeStatus;
+    await match.save();
 
     res.json({ message: "Status updated" });
   } catch (err) {
-    console.error("admin headshot status error", err);
+    console.error("admin headshot status error:", err.message);
     res.status(500).json({ message: "Failed to update status" });
   }
 });
 
-// UPDATE room details
+/**
+ * UPDATE room details
+ * PATCH /api/admin/headshot/:id/room
+ */
 router.patch("/headshot/:id/room", requireAdmin, async (req, res) => {
   try {
     const { id } = req.params;
     const { room_id, room_password } = req.body;
 
-    await sequelize.query(
-      `UPDATE headshot SET room_id = ?, room_password = ? WHERE id = ?`,
-      { replacements: [room_id, room_password, id] }
-    );
+    const match = await Headshot.findByPk(id);
+    if (!match) return res.status(404).json({ message: "Headshot match not found" });
+
+    match.room_id = room_id || null;
+    match.room_password = room_password || null;
+    await match.save();
 
     res.json({ message: "Room updated" });
   } catch (err) {
-    console.error("admin headshot room error", err);
+    console.error("admin headshot room error:", err.message);
     res.status(500).json({ message: "Failed to update room details" });
   }
 });
 
-// GET players for a match
+/**
+ * GET players for a match
+ * GET /api/admin/headshot/:id/players
+ */
 router.get("/headshot/:id/players", requireAdmin, async (req, res) => {
   try {
-    const { id } = req.params;
+    const matchId = parseInt(req.params.id);
 
-    const players = await selectQuery(
-      `SELECT j.id,
-              u.name,
-              u.email,
-              u.phone,
-              u.game_id AS freefireId,
-              j.team_side
-       FROM headshot_joins j
-       JOIN users u ON u.id = j.user_id
-       WHERE j.match_id = ?
-       ORDER BY j.id ASC`,
-      [id]
-    );
+    const parts = await Participation.findAll({
+      where: { headshot_id: matchId },
+      order: [["id", "ASC"]],
+    });
 
-    res.json({ players });
+    if (parts.length === 0) return res.json({ players: [], count: 0 });
+
+    const userIds = [...new Set(parts.map((p) => p.user_id))];
+    const users = await User.findAll({ where: { id: userIds } });
+
+    const userMap = {};
+    users.forEach((u) => (userMap[u.id] = u));
+
+    const players = parts.map((row) => {
+      const u = userMap[row.user_id];
+      return {
+        id: row.id,
+        user_id: row.user_id,
+        name: u?.name || "Unknown",
+        email: u?.email || "",
+        phone: u?.phone || "",
+        freefireId: u?.game_id || "",
+        team_side: row.team_side || null,
+      };
+    });
+
+    res.json({ players, count: players.length });
   } catch (err) {
-    console.error("admin headshot players error", err);
+    console.error("admin headshot players error:", err.message);
     res.status(500).json({ message: "Failed to load players" });
+  }
+});
+
+/**
+ * DELETE headshot tournament (and its participations)
+ * DELETE /api/admin/headshot/:id
+ */
+router.delete("/headshot/:id", requireAdmin, async (req, res) => {
+  const tx = await sequelize.transaction();
+  try {
+    const id = parseInt(req.params.id);
+
+    const match = await Headshot.findByPk(id, { transaction: tx });
+    if (!match) {
+      await tx.rollback();
+      return res.status(404).json({ message: "Headshot match not found" });
+    }
+
+    await sequelize.query(`DELETE FROM participations WHERE headshot_id = ?`, {
+      replacements: [id],
+      transaction: tx,
+    });
+
+    await match.destroy({ transaction: tx });
+
+    await tx.commit();
+    res.json({ message: "Headshot match deleted successfully" });
+  } catch (err) {
+    await tx.rollback();
+    console.error("admin headshot delete error:", err.message);
+    res.status(500).json({ message: "Failed to delete headshot match" });
   }
 });
 

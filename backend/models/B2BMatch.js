@@ -41,7 +41,7 @@ const B2BMatch = sequelize.define(
     },
 
     status: {
-      type: DataTypes.ENUM("upcoming", "ongoing", "completed"),
+      type: DataTypes.ENUM("upcoming", "ongoing", "completed", "live"),
       allowNull: false,
       defaultValue: "upcoming",
     },
@@ -58,6 +58,19 @@ const B2BMatch = sequelize.define(
 
     room_password: {
       type: DataTypes.STRING,
+      allowNull: true,
+    },
+
+    // FIXED: Tournament lock flag
+    is_locked: {
+      type: DataTypes.TINYINT(1),
+      allowNull: false,
+      defaultValue: 0,
+    },
+
+    // FIXED: Game mode solo/duo/squad
+    mode: {
+      type: DataTypes.STRING(50),
       allowNull: true,
     },
   },

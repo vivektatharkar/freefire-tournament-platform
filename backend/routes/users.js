@@ -2,12 +2,14 @@
 import express from "express";
 import jwt from "jsonwebtoken";
 import { User } from "../models/index.js";
+
 const router = express.Router();
 
 function authMiddleware(req, res, next) {
   const authHeader = req.headers.authorization || "";
   const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : null;
   if (!token) return res.status(401).json({ message: "No token provided" });
+
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET || "secret");
     req.user = decoded;
@@ -33,11 +35,12 @@ router.get("/me", authMiddleware, async (req, res) => {
         "updated_at",
       ],
     });
+
     if (!user) return res.status(404).json({ message: "User not found" });
-    res.json(user);
+    return res.json(user);
   } catch (err) {
     console.error("GET /users/me error:", err);
-    res.status(500).json({ message: "Failed to load profile" });
+    return res.status(500).json({ message: "Failed to load profile" });
   }
 });
 
@@ -84,7 +87,7 @@ async function updateMeHandler(req, res) {
     });
   } catch (err) {
     console.error("PUT /users/me error:", err);
-    res.status(500).json({ message: "Failed to update profile" });
+    return res.status(500).json({ message: "Failed to update profile" });
   }
 }
 

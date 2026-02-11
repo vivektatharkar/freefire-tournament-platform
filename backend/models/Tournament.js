@@ -26,6 +26,7 @@ const Tournament = sequelize.define(
       defaultValue: 0.0,
     },
 
+    // 👇 IMPORTANT: same as DB column: price_pool
     price_pool: {
       type: DataTypes.DECIMAL(10, 2),
       defaultValue: 0.0,
@@ -37,7 +38,8 @@ const Tournament = sequelize.define(
     },
 
     status: {
-      type: DataTypes.ENUM("upcoming", "ongoing", "completed"),
+      // your table has: enum('upcoming','ongoing','completed','live')
+      type: DataTypes.ENUM("upcoming", "ongoing", "completed", "live"),
       defaultValue: "upcoming",
     },
 
@@ -53,6 +55,19 @@ const Tournament = sequelize.define(
 
     room_password: {
       type: DataTypes.STRING,
+      allowNull: true,
+    },
+
+    // ✅ Tournament lock flag (tinyint(1) in DB)
+    is_locked: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: false,
+    },
+
+    // ✅ Game mode: solo / duo / squad / BR_SINGLE etc.
+    mode: {
+      type: DataTypes.STRING, // matches varchar(50) in your DB
       allowNull: true,
     },
   },

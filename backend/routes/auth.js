@@ -4,11 +4,47 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import nodemailer from "nodemailer";
 import { User } from "../models/index.js";
+import { auth } from "../middleware/auth.js";
 
 const router = express.Router();
 
 /* ------------------------------------------------------------------ */
-/*  HELPER: create email transporter (same env as signup OTP emails)  */
+/*  AUTH ME: GET /api/auth/me                                         */
+/* ------------------------------------------------------------------ */
+router.get("/me", auth, async (req, res) => {
+  try {
+    const user = await User.findByPk(req.user.id, {
+      attributes: [
+        "id",
+        "name",
+        "email",
+        "phone",
+        "role",
+        "wallet_balance",
+        "game_id",
+        "last_login_at",
+        "last_active_at",
+      ],
+    });
+
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    // ✅ NEW: update last active (used for admin "online users")
+    try {
+      await user.update({ last_active_at: new Date() });
+    } catch (e) {
+      // don't break flow if column not added yet
+    }
+
+    return res.json({ user });
+  } catch (err) {
+    console.error("GET /api/auth/me error:", err);
+    return res.status(500).json({ message: "Failed to load user" });
+  }
+});
+
+/* ------------------------------------------------------------------ */
+/*  HELPER: create email transporter                                  */
 /* ------------------------------------------------------------------ */
 function createMailer() {
   const host = process.env.SMTP_HOST || "smtp.gmail.com";
@@ -39,8 +75,66 @@ function createMailer() {
 }
 
 /* ------------------------------------------------------------------ */
-/*  SIGNUP (frontend already ensured email OTP is verified)           */
-/*  POST /api/auth/signup                                             */
+/*  SIGNUP OTP: POST /api/auth/send-otp                               */
+/* ------------------------------------------------------------------ */
+
+// in‑memory store: email -> { code, expires }
+const SIGNUP_OTPS = new Map();
+
+router.post("/send-otp", async (req, res) => {
+  try {
+    let { email } = req.body;
+    email = (email || "").trim().toLowerCase();
+
+    if (!email) {
+      return res.status(400).json({ message: "Email is required" });
+    }
+
+    const existing = await User.findOne({ where: { email } });
+    if (existing) {
+      return res.status(400).json({ message: "Email already registered" });
+    }
+
+    const code = String(Math.floor(100000 + Math.random() * 900000));
+    const expires = Date.now() + 10 * 60 * 1000;
+
+    SIGNUP_OTPS.set(email, { code, expires });
+
+    const transporter = createMailer();
+
+    if (transporter) {
+      try {
+        await transporter.sendMail({
+          from: process.env.SMTP_USER,
+          to: email,
+          subject: "Signup OTP - Freefire Tournament",
+          text: `Your OTP for signup is: ${code}
+
+This code is valid for 10 minutes.`,
+        });
+        console.log(`[SIGNUP OTP EMAIL] to ${email}: ${code}`);
+        return res.json({ message: "OTP sent to your email" });
+      } catch (mailErr) {
+        console.error("SIGNUP OTP SEND ERROR:", mailErr);
+      }
+    }
+
+    console.log(
+      `[SIGNUP OTP - DEV MODE] to ${email}: ${code} (no SMTP config or send error)`
+    );
+    return res.json({
+      message: "OTP generated (dev mode). Check backend console for the code.",
+    });
+  } catch (err) {
+    console.error("SEND-OTP ERROR:", err);
+    return res
+      .status(500)
+      .json({ message: "Failed to send OTP", error: err.message || String(err) });
+  }
+});
+
+/* ------------------------------------------------------------------ */
+/*  SIGNUP: POST /api/auth/signup                                     */
 /* ------------------------------------------------------------------ */
 router.post("/signup", async (req, res) => {
   try {
@@ -57,7 +151,6 @@ router.post("/signup", async (req, res) => {
         .json({ message: "Name, email and password are required" });
     }
 
-    // Phone: exactly 10 digits if provided
     if (phone) {
       if (!/^[0-9]{10}$/.test(phone)) {
         return res
@@ -66,7 +159,6 @@ router.post("/signup", async (req, res) => {
       }
     }
 
-    // uniqueness checks
     const existingEmail = await User.findOne({ where: { email } });
     if (existingEmail) {
       return res.status(400).json({ message: "Email already registered" });
@@ -86,16 +178,19 @@ router.post("/signup", async (req, res) => {
       email,
       phone: phone || null,
       password_hash: hash,
-      // ✅ init game_id as empty string
       game_id: "",
+      // ✅ NEW (safe even if DB not altered yet)
+      last_login_at: null,
+      last_active_at: null,
     });
 
-    // ✅ include role in token so adminOnly works
     const token = jwt.sign(
       { id: user.id, role: user.role },
       process.env.JWT_SECRET || "supersecret",
       { expiresIn: "7d" }
     );
+
+    SIGNUP_OTPS.delete(email);
 
     return res.json({
       message: "Signup successful",
@@ -119,8 +214,7 @@ router.post("/signup", async (req, res) => {
 });
 
 /* ------------------------------------------------------------------ */
-/*  LOGIN                                                              */
-/*  POST /api/auth/login                                               */
+/*  LOGIN: POST /api/auth/login                                       */
 /* ------------------------------------------------------------------ */
 router.post("/login", async (req, res) => {
   try {
@@ -144,7 +238,13 @@ router.post("/login", async (req, res) => {
       return res.status(400).json({ message: "Invalid email or password" });
     }
 
-    // ✅ include role so adminOnly can see admin
+    // ✅ NEW: store login + active timestamps for admin dashboard
+    try {
+      await user.update({ last_login_at: new Date(), last_active_at: new Date() });
+    } catch (e) {
+      // don't break flow if column not added yet
+    }
+
     const token = jwt.sign(
       { id: user.id, role: user.role },
       process.env.JWT_SECRET || "supersecret",
@@ -173,17 +273,12 @@ router.post("/login", async (req, res) => {
 });
 
 /* ------------------------------------------------------------------ */
-/*  FORGOT PASSWORD - in-memory reset tokens                          */
+/*  FORGOT PASSWORD FLOW (unchanged)                                  */
 /* ------------------------------------------------------------------ */
 
 // email → { code, expires }
 const RESET_TOKENS = new Map();
 
-/**
- * POST /api/auth/forgot-start
- * Body: { email }
- * Sends an OTP to the given email (if user exists).
- */
 router.post("/forgot-start", async (req, res) => {
   try {
     let { email } = req.body;
@@ -198,8 +293,8 @@ router.post("/forgot-start", async (req, res) => {
       return res.status(400).json({ message: "No user found with this email" });
     }
 
-    const code = String(Math.floor(100000 + Math.random() * 900000)); // 6 digits
-    const expires = Date.now() + 10 * 60 * 1000; // 10 minutes
+    const code = String(Math.floor(100000 + Math.random() * 900000));
+    const expires = Date.now() + 10 * 60 * 1000;
 
     RESET_TOKENS.set(email, { code, expires });
 
@@ -211,7 +306,9 @@ router.post("/forgot-start", async (req, res) => {
           from: process.env.SMTP_USER,
           to: email,
           subject: "Password reset OTP - Freefire Tournament",
-          text: `Your OTP to reset your password is: ${code}\n\nThis code is valid for 10 minutes.`,
+          text: `Your OTP to reset your password is: ${code}
+
+This code is valid for 10 minutes.`,
         });
         console.log(`[RESET EMAIL OTP] to ${email}: ${code}`);
         return res.json({ message: "Reset OTP sent to your email" });
@@ -236,11 +333,6 @@ router.post("/forgot-start", async (req, res) => {
   }
 });
 
-/**
- * POST /api/auth/forgot-complete
- * Body: { email, code, newPassword }
- * Verifies OTP and updates password_hash.
- */
 router.post("/forgot-complete", async (req, res) => {
   try {
     let { email, code, newPassword } = req.body;

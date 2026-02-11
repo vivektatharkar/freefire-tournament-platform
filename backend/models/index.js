@@ -1,11 +1,10 @@
 // backend/models/index.js
 // Robust models registry for Freefire project.
-// Fixes: avoids calling ES6 Model classes as functions (prevents "Class constructor model cannot be invoked without 'new'")
-// Expects backend/config/db.js to export a Sequelize instance (default export).
 
-import sequelize, { Sequelize } from "../config/db.js";
+import sequelize from "../config/db.js";
+import { Sequelize } from "sequelize";
 
-// Import model modules from same folder
+// Import model modules
 import UserModule from "./User.js";
 import TournamentModule from "./Tournament.js";
 import PaymentModule from "./Payment.js";
@@ -13,56 +12,53 @@ import ParticipationModule from "./Participation.js";
 import B2BMatchModule from "./B2BMatch.js";
 import HeadshotModule from "./Headshot.js";
 import CSMatchModule from "./CSMatch.js";
-import NotificationModule from "./Notification.js";
 
-/**
- * Detect if an export is a Sequelize Model class.
- * Example: `class User extends Model {}` -> prototype instanceof Sequelize.Model
- */
-function isModelClass(obj) {
+// ✅ Notification is a factory now
+import NotificationImport from "./Notification.js";
+
+// NEW: import Team / TeamMember model modules
+import TeamModule from "./Team.js";
+import TeamMemberModule from "./TeamMember.js";
+
+// ✅ NEW: support models
+import SupportTicketModule from "./SupportTicket.js";
+import SupportMessageModule from "./SupportMessage.js";
+
+// ✅ NEW: Admin audit logs
+import AdminAuditLogModule from "./AdminAuditLog.js";
+
+function unwrapDefault(m) {
+  return m && typeof m === "object" && "default" in m ? m.default : m;
+}
+
+function isSequelizeModel(obj) {
   try {
-    return (
-      typeof obj === "function" &&
-      obj.prototype &&
-      obj.prototype instanceof Sequelize.Model
-    );
-  } catch (e) {
+    return !!(obj && typeof obj === "function" && obj.prototype instanceof Sequelize.Model);
+  } catch {
     return false;
   }
 }
 
-/**
- * If the module export is a function:
- *  - If it's a Model class -> return it (don't call)
- *  - Else assume it's a factory and call with (sequelize, Sequelize)
- * If it's not a function, return as-is (already instantiated model)
- */
 function instantiate(modelImport) {
   try {
     if (!modelImport) return null;
 
-    // If it's a Model class (subclass of Sequelize.Model), return as-is
-    if (isModelClass(modelImport)) {
-      return modelImport;
+    const unwrapped = unwrapDefault(modelImport);
+
+    if (isSequelizeModel(unwrapped)) return unwrapped;
+
+    if (typeof unwrapped === "function") {
+      return unwrapped(sequelize, Sequelize);
     }
 
-    // If it's a function (factory), call it with (sequelize, Sequelize)
-    if (typeof modelImport === "function") {
-      return modelImport(sequelize, Sequelize);
-    }
-
-    // Otherwise assume it's already a model instance and return it
-    return modelImport;
+    return unwrapped;
   } catch (err) {
-    console.warn(
-      "Model instantiate warning:",
-      err && err.message ? err.message : err
-    );
-    return modelImport;
+    console.warn("Model instantiate warning:", err?.message || err);
+    return unwrapDefault(modelImport);
   }
 }
 
-// Instantiate models safely
+// Instantiate models
 const User = instantiate(UserModule);
 const Tournament = instantiate(TournamentModule);
 const Payment = instantiate(PaymentModule);
@@ -70,9 +66,21 @@ const Participation = instantiate(ParticipationModule);
 const B2BMatch = instantiate(B2BMatchModule);
 const Headshot = instantiate(HeadshotModule);
 const CSMatch = instantiate(CSMatchModule);
-const Notification = instantiate(NotificationModule);
 
-// Helper to attempt an association and log problems without crashing
+// ✅ FIX: instantiate the Notification factory -> real Sequelize model
+const NotificationModel = instantiate(NotificationImport);
+
+// NEW: instantiate Team / TeamMember
+const Team = instantiate(TeamModule);
+const TeamMember = instantiate(TeamMemberModule);
+
+// ✅ NEW: instantiate SupportTicket / SupportMessage
+const SupportTicket = instantiate(SupportTicketModule);
+const SupportMessage = instantiate(SupportMessageModule);
+
+// ✅ NEW: instantiate AdminAuditLog
+const AdminAuditLog = instantiate(AdminAuditLogModule);
+
 function tryAssociate(fn, description) {
   try {
     fn();
@@ -84,7 +92,7 @@ function tryAssociate(fn, description) {
   }
 }
 
-// Setup associations (guarded)
+// Tournament <-> Participation
 tryAssociate(() => {
   if (
     Tournament &&
@@ -97,6 +105,7 @@ tryAssociate(() => {
   }
 }, "Tournament <-> Participation");
 
+// User <-> Participation
 tryAssociate(() => {
   if (
     User &&
@@ -109,6 +118,7 @@ tryAssociate(() => {
   }
 }, "User <-> Participation");
 
+// User <-> Payment
 tryAssociate(() => {
   if (
     User &&
@@ -116,11 +126,25 @@ tryAssociate(() => {
     typeof User.hasMany === "function" &&
     typeof Payment.belongsTo === "function"
   ) {
-    User.hasMany(Payment, { foreignKey: "user_id" });
-    Payment.belongsTo(User, { foreignKey: "user_id" });
+    User.hasMany(Payment, { foreignKey: "user_id", as: "payments" });
+    Payment.belongsTo(User, { foreignKey: "user_id", as: "user" });
   }
 }, "User <-> Payment");
 
+// ✅ User <-> AdminAuditLog
+tryAssociate(() => {
+  if (
+    User &&
+    AdminAuditLog &&
+    typeof User.hasMany === "function" &&
+    typeof AdminAuditLog.belongsTo === "function"
+  ) {
+    User.hasMany(AdminAuditLog, { foreignKey: "actor_user_id", as: "adminLogs" });
+    AdminAuditLog.belongsTo(User, { foreignKey: "actor_user_id", as: "actor" });
+  }
+}, "User <-> AdminAuditLog");
+
+// Tournament <-> Payment
 tryAssociate(() => {
   if (
     Tournament &&
@@ -128,24 +152,95 @@ tryAssociate(() => {
     typeof Tournament.hasMany === "function" &&
     typeof Payment.belongsTo === "function"
   ) {
-    Tournament.hasMany(Payment, { foreignKey: "tournament_id" });
-    Payment.belongsTo(Tournament, { foreignKey: "tournament_id" });
+    Tournament.hasMany(Payment, { foreignKey: "tournament_id", as: "payments" });
+    Payment.belongsTo(Tournament, {
+      foreignKey: "tournament_id",
+      as: "tournament",
+    });
   }
 }, "Tournament <-> Payment");
 
+// User <-> Notification
 tryAssociate(() => {
   if (
     User &&
-    Notification &&
+    NotificationModel &&
     typeof User.hasMany === "function" &&
-    typeof Notification.belongsTo === "function"
+    typeof NotificationModel.belongsTo === "function"
   ) {
-    User.hasMany(Notification, { foreignKey: "user_id" });
-    Notification.belongsTo(User, { foreignKey: "user_id" });
+    User.hasMany(NotificationModel, {
+      foreignKey: "user_id",
+      as: "notifications",
+    });
+    NotificationModel.belongsTo(User, { foreignKey: "user_id", as: "user" });
   }
 }, "User <-> Notification");
 
-// Export everything (default and named exports)
+// Tournament <-> Team
+tryAssociate(() => {
+  if (
+    Tournament &&
+    Team &&
+    typeof Tournament.hasMany === "function" &&
+    typeof Team.belongsTo === "function"
+  ) {
+    Tournament.hasMany(Team, { foreignKey: "tournament_id" });
+    Team.belongsTo(Tournament, { foreignKey: "tournament_id" });
+  }
+}, "Tournament <-> Team");
+
+// Team <-> TeamMember
+tryAssociate(() => {
+  if (
+    Team &&
+    TeamMember &&
+    typeof Team.hasMany === "function" &&
+    typeof TeamMember.belongsTo === "function"
+  ) {
+    Team.hasMany(TeamMember, { foreignKey: "team_id", as: "members" });
+    TeamMember.belongsTo(Team, { foreignKey: "team_id", as: "team" });
+  }
+}, "Team <-> TeamMember");
+
+// User <-> TeamMember
+tryAssociate(() => {
+  if (
+    User &&
+    TeamMember &&
+    typeof User.hasMany === "function" &&
+    typeof TeamMember.belongsTo === "function"
+  ) {
+    User.hasMany(TeamMember, { foreignKey: "user_id" });
+    TeamMember.belongsTo(User, { foreignKey: "user_id" });
+  }
+}, "User <-> TeamMember");
+
+// SupportTicket <-> SupportMessage
+tryAssociate(() => {
+  if (
+    SupportTicket &&
+    SupportMessage &&
+    typeof SupportTicket.hasMany === "function" &&
+    typeof SupportMessage.belongsTo === "function"
+  ) {
+    SupportTicket.hasMany(SupportMessage, { foreignKey: "ticket_id", as: "messages" });
+    SupportMessage.belongsTo(SupportTicket, { foreignKey: "ticket_id", as: "ticket" });
+  }
+}, "SupportTicket <-> SupportMessage");
+
+// User <-> SupportTicket
+tryAssociate(() => {
+  if (
+    User &&
+    SupportTicket &&
+    typeof User.hasMany === "function" &&
+    typeof SupportTicket.belongsTo === "function"
+  ) {
+    User.hasMany(SupportTicket, { foreignKey: "user_id", as: "supportTickets" });
+    SupportTicket.belongsTo(User, { foreignKey: "user_id", as: "user" });
+  }
+}, "User <-> SupportTicket");
+
 const models = {
   sequelize,
   Sequelize,
@@ -156,7 +251,12 @@ const models = {
   B2BMatch,
   Headshot,
   CSMatch,
-  Notification,
+  Notification: NotificationModel,
+  Team,
+  TeamMember,
+  SupportTicket,
+  SupportMessage,
+  AdminAuditLog,
 };
 
 export default models;
@@ -171,5 +271,10 @@ export {
   B2BMatch,
   Headshot,
   CSMatch,
-  Notification,
+  NotificationModel as Notification,
+  Team,
+  TeamMember,
+  SupportTicket,
+  SupportMessage,
+  AdminAuditLog,
 };

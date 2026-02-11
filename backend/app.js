@@ -27,29 +27,36 @@ import adminTournamentRoutes from "./routes/adminTournamentRoutes.js";
 import adminB2BTournamentRoutes from "./routes/adminB2BTournamentRoutes.js";
 import adminCsRoutes from "./routes/adminCsRoutes.js";
 import adminUsersRouter from "./routes/adminUsers.js";
-import adminPaymentsRouter from "./routes/adminPayments.js";
+import adminPaymentsRoutes from "./routes/adminPayments.js";
+import adminScores from "./routes/adminScores.js";
+import adminLeaderboard from "./routes/adminLeaderboard.js";
+
+// ✅ NEW: admin dashboard stats route
+import adminDashboardStatsRoutes from "./routes/adminDashboardStats.js";
 
 // notifications
 import notificationRoutes from "./routes/notifications.js";
 
+// support routes
+import supportRoutes from "./routes/support.js";
+import adminSupportRoutes from "./routes/adminSupport.js";
+
+// super admin routes
+import superAdminRoutes from "./routes/superAdmin.js";
+
 const app = express();
 
-/* ---------------- LOGGING (FIXED) ---------------- */
+// Helpful if deployed behind reverse proxy (Render/NGINX/etc.)
+app.set("trust proxy", 1);
+
 if (process.env.NODE_ENV !== "production") {
-  app.use(
-    morgan("dev", {
-      skip: (req, res) =>
-        req.method === "OPTIONS" || res.statusCode === 304,
-    })
-  );
+  app.use(morgan("dev"));
 } else {
   app.use(morgan("combined"));
 }
 
-/* ---------------- SECURITY ---------------- */
 app.use(helmet());
 
-/* ---------------- CORS ---------------- */
 app.use(
   cors({
     origin: process.env.FRONTEND_URL || true,
@@ -59,7 +66,6 @@ app.use(
 
 app.use(cookieParser());
 
-/* ---------------- BODY PARSERS ---------------- */
 app.use(
   express.json({
     limit: "2mb",
@@ -76,12 +82,11 @@ app.use(
   })
 );
 
-/* ---------------- HEALTH CHECK ---------------- */
 app.get("/api/health", (req, res) => {
   res.json({ status: "OK", time: new Date().toISOString() });
 });
 
-/* ---------------- PUBLIC APIs ---------------- */
+// public APIs
 app.use("/api/auth", authRoutes);
 app.use("/api/verify", verifyRoutes);
 app.use("/api/users", usersRoutes);
@@ -92,59 +97,72 @@ app.use("/api/b2b", b2bRoutes);
 app.use("/api/cs", csRoutes);
 app.use("/api/headshot", headshotRoutes);
 
-/* ---------------- ADMIN APIs ---------------- */
+// Support APIs (user)
+app.use("/api/support", supportRoutes);
+
+// Optional quick debug to confirm route is mounted (remove later)
+if (process.env.NODE_ENV !== "production") {
+  console.log("Mounted user support routes at /api/support");
+}
+
+// admin APIs (routers under /api/admin)
 app.use("/api/admin", adminWithdrawalsRoutes);
 app.use("/api/admin", adminHeadshotRoutes);
 app.use("/api/admin", adminTournamentRoutes);
 app.use("/api/admin", adminB2BTournamentRoutes);
 app.use("/api/admin", adminCsRoutes);
-app.use("/api/admin/users", adminUsersRouter);
-app.use("/api/admin", adminPaymentsRouter);
+app.use("/api/admin", adminPaymentsRoutes);
 
-/* ---------------- NOTIFICATIONS ---------------- */
+// ✅ NEW: dashboard stats
+app.use("/api/admin", adminDashboardStatsRoutes);
+
+// admin users (already mounted on /api/admin/users)
+app.use("/api/admin/users", adminUsersRouter);
+
+// admin scores (kept as you had)
+app.use("/api/admin", adminScores);
+
+// Mount leaderboard on /api/admin/leaderboard
+app.use("/api/admin/leaderboard", adminLeaderboard);
+
+// Admin support APIs
+app.use("/api/admin", adminSupportRoutes);
+
+// ✅ SuperAdmin APIs
+app.use("/api/admin", superAdminRoutes);
+
+// notifications
 app.use("/api/notifications", notificationRoutes);
 
-/* ---------------- STATIC FRONTEND ---------------- */
-/**
- * Folder layout:
- *  C:\freefire-tournament-platform\backend  <-- backend cwd
- *  C:\freefire-tournament-platform\frontend <-- React app
- *  C:\freefire-tournament-platform\frontend\build <-- npm run build output
- *
- * So we go one level up (..) from backend, then into frontend/build.
- */
-const frontendBuildPath = path.join(process.cwd(), "..", "frontend", "build");
+// static frontend
+const frontendBuildPath = path.join(process.cwd(), "frontend", "build");
 app.use(express.static(frontendBuildPath));
 
-/* ---------------- API 404 ---------------- */
+// API 404 (after all API routes)
 app.use("/api", (req, res) => {
   res.status(404).json({ message: "API route not found" });
 });
 
-/* ---------------- FRONTEND FALLBACK ---------------- */
+// frontend fallback (after API 404)
 app.get("*", (req, res) => {
   try {
     return res.sendFile(path.join(frontendBuildPath, "index.html"));
-  } catch {
+  } catch (err) {
     return res.status(404).json({ message: "Not found" });
   }
 });
 
-/* ---------------- ERROR HANDLER ---------------- */
+// error handler (must be last)
 app.use((err, req, res, next) => {
   console.error("UNHANDLED ERROR:", err?.stack || err);
-
   const status = err.status || err.statusCode || 500;
   const message =
     process.env.NODE_ENV === "production"
       ? "Internal server error"
       : err.message || "Internal server error";
 
-  if (Array.isArray(err.errors)) {
-    return res.status(status).json({
-      message,
-      errors: err.errors,
-    });
+  if (err.errors && Array.isArray(err.errors)) {
+    return res.status(status).json({ message, errors: err.errors });
   }
 
   return res.status(status).json({ message });
