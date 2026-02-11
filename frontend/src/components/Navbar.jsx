@@ -277,7 +277,7 @@ export default function Navbar() {
           <div style={menuItem()} onClick={() => go("/history")}>
             <span>History</span>
             <span style={{ fontSize: 11, color: "#9ca3af" }}>
-              Joined tournaments
+              See Joined tournaments
             </span>
           </div>
 
@@ -288,7 +288,7 @@ export default function Navbar() {
 
           <div style={menuItem()} onClick={handleHelp}>
             <span>Help center</span>
-            <span style={{ fontSize: 11, color: "#9ca3af" }}>Coming soon</span>
+            <span style={{ fontSize: 11, color: "#9ca3af" }}>we help you</span>
           </div>
 
           <div style={{ flex: 1 }} />

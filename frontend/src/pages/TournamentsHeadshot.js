@@ -693,27 +693,33 @@ export default function TournamentsHeadshot() {
     fetchParticipants(idStr);
   };
 
-  const handleSaveTeamName = async (matchId, sideKey, name) => {
-    const tkn = token || localStorage.getItem("token");
-    if (!tkn) return;
-    try {
-      const res = await axios.patch(
-        `http://localhost:5000/api/headshot/${matchId}/team-name`,
-        { team_side: sideKey, name },
-        { headers: { Authorization: `Bearer ${tkn}` } }
-      );
-      setParticipantsById((s) => ({
-        ...s,
-        [matchId]: {
-          ...s[matchId],
-          team_a_name: res.data.team_a_name || "",
-          team_b_name: res.data.team_b_name || "",
-        },
-      }));
-    } catch (e) {
-      console.error("update team name failed", e);
-    }
-  };
+ const handleSaveTeamName = async (matchId, sideKey, name) => {
+  const tkn = token || localStorage.getItem("token");
+  if (!tkn) return;
+
+  const trimmed = String(name || "").trim();
+  if (!trimmed) return; // don't send empty names
+
+  try {
+    const res = await axios.patch(
+      `http://localhost:5000/api/headshot/${matchId}/team-name`,
+      { team_side: sideKey, name: trimmed },
+      { headers: { Authorization: `Bearer ${tkn}` } }
+    );
+
+    setParticipantsById((s) => ({
+      ...s,
+      [matchId]: {
+        ...(s[matchId] || {}),
+        team_a_name: res.data.team_a_name || "",
+        team_b_name: res.data.team_b_name || "",
+        data: s[matchId]?.data || [],
+      },
+    }));
+  } catch (e) {
+    console.error("update team name failed", e);
+  }
+ };
 
   const pageStyle = {
     ...pageBase,

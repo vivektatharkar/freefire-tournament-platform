@@ -1,4 +1,4 @@
-//frontend/src/pages/auth/Signup.js
+// frontend/src/pages/auth/Signup.js
 import React, { useState } from "react";
 import axios from "axios";
 import { useNavigate, Link } from "react-router-dom";
@@ -121,7 +121,8 @@ const linkStyle = {
   fontWeight: 500,
 };
 
-const API_BASE = "http://localhost:5000";
+// point directly to /api
+const API_BASE = "http://localhost:5000/api";
 
 export default function Signup() {
   const [name, setName] = useState("");
@@ -131,7 +132,7 @@ export default function Signup() {
 
   const [emailOtp, setEmailOtp] = useState("");
   const [emailVerified, setEmailVerified] = useState(false);
-  const [verificationToken, setVerificationToken] = useState(""); // NEW
+  const [verificationToken, setVerificationToken] = useState("");
 
   const [msg, setMsg] = useState("");
   const [isError, setIsError] = useState(false);
@@ -145,21 +146,21 @@ export default function Signup() {
     setIsError(isErr);
   };
 
-  // when email changes, require verification again
   const handleEmailChange = (e) => {
     setEmail(e.target.value);
     setEmailVerified(false);
     setEmailOtp("");
-    setVerificationToken(""); // clear old token when email changes
+    setVerificationToken("");
   };
 
   // PHONE: only digits, max 10
   const handlePhoneChange = (e) => {
     const raw = e.target.value;
-    const digitsOnly = raw.replace(/\D/g, "").slice(0, 10);
+    const digitsOnly = raw.replace(/D/g, "").slice(0, 10);
     setPhone(digitsOnly);
   };
 
+  // SEND OTP using /api/auth/send-otp
   const handleSendEmailOtp = async () => {
     if (!email) {
       setMessage("Enter email first.", true);
@@ -170,9 +171,8 @@ export default function Signup() {
       setMessage("");
       setOtpLoading(true);
 
-      const res = await axios.post(`${API_BASE}/api/verify/send-email`, {
-        email,
-      });
+      const res = await axios.post(`${API_BASE}/auth/send-otp`, { email });
+
       setEmailVerified(false);
       setVerificationToken("");
       setMessage(
@@ -191,6 +191,7 @@ export default function Signup() {
     }
   };
 
+  // still uses /api/verify/confirm-email (keep as is unless backend changed)
   const handleConfirmEmailOtp = async () => {
     if (!emailOtp) {
       setMessage("Enter the OTP from your email.", true);
@@ -201,12 +202,11 @@ export default function Signup() {
       setMessage("");
       setOtpLoading(true);
 
-      const res = await axios.post(`${API_BASE}/api/verify/confirm-email`, {
+      const res = await axios.post(`${API_BASE}/verify/confirm-email`, {
         email,
         otp: emailOtp,
       });
 
-      // backend should return verification_token
       const tokenFromServer = res.data.verification_token;
       if (!tokenFromServer) {
         console.warn("No verification_token in response:", res.data);
@@ -252,12 +252,12 @@ export default function Signup() {
 
     setLoading(true);
     try {
-      const res = await axios.post(`${API_BASE}/api/auth/signup`, {
+      const res = await axios.post(`${API_BASE}/auth/signup`, {
         name,
         email,
         phone,
         password,
-        verification_token: verificationToken, // IMPORTANT
+        verification_token: verificationToken,
       });
 
       setMessage(res.data.message || "Signup successful", false);
@@ -296,7 +296,7 @@ export default function Signup() {
             style={inputStyle}
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="Your name"
+            placeholder="Copy Your Freefire Name & Paste Here"
           />
         </div>
 
@@ -308,11 +308,10 @@ export default function Signup() {
             value={email}
             onChange={handleEmailChange}
             placeholder="you@example.com"
-            disabled={emailVerified} // lock after verified
+            disabled={emailVerified}
           />
         </div>
 
-        {/* Email OTP area - hidden after verified */}
         {!emailVerified && (
           <div>
             <label style={labelStyle}>Email OTP</label>

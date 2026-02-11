@@ -11,9 +11,7 @@ import thumbDefault from "../assets/thumb.jpg";
 function parseMatchDate(raw) {
   if (!raw) return null;
 
-  const m = String(raw).match(
-    /(\d{4})-(\d{2})-(\d{2}).*?(\d{2}):(\d{2})/
-  );
+  const m = String(raw).match(/(d{4})-(d{2})-(d{2}).*?(d{2}):(d{2})/);
   if (m) {
     const y = +m[1],
       mo = +m[2] - 1,
@@ -51,9 +49,7 @@ function formatMatchLabel(raw) {
     hour12: true,
   });
 
-  if (isToday) {
-    return `Today at ${timeStr}`;
-  }
+  if (isToday) return `Today at ${timeStr}`;
 
   const dateStr = dt.toLocaleString("en-US", {
     month: "long",
@@ -77,6 +73,18 @@ function isTournamentExpired(rawDate, nowMs) {
   if (!dt) return false;
   const cutoff = dt.getTime() + 2 * 60 * 1000;
   return nowMs > cutoff;
+}
+
+function normalizeMode(mode) {
+  if (!mode) return "solo";
+  return String(mode).toLowerCase();
+}
+
+function getModeLabel(mode) {
+  const m = normalizeMode(mode);
+  if (m === "duo") return "Duo";
+  if (m === "squad") return "Squad";
+  return "Solo";
 }
 
 /* ---------- Styles ---------- */
@@ -214,6 +222,31 @@ const infoPill = {
   alignItems: "center",
 };
 
+const lockPill = {
+  background: "rgba(239,68,68,0.2)",
+  border: "1px solid rgba(239,68,68,0.4)",
+  borderRadius: 999,
+  padding: "6px 12px",
+  fontSize: 12,
+  color: "#fca5a5",
+  fontWeight: 600,
+  marginTop: 8,
+  display: "inline-flex",
+  alignItems: "center",
+  gap: 6,
+};
+
+const modeBadge = {
+  background: "rgba(59,130,246,0.2)",
+  border: "1px solid rgba(59,130,246,0.4)",
+  color: "#60a5fa",
+  padding: "4px 10px",
+  borderRadius: 999,
+  fontSize: 12,
+  fontWeight: 600,
+  textTransform: "uppercase",
+};
+
 const detailsBox = {
   marginTop: 14,
   background:
@@ -223,6 +256,117 @@ const detailsBox = {
   color: "#e6eef8",
   boxShadow: "0 10px 30px rgba(0,0,0,0.5)",
   animation: "detailsFade .18s ease",
+};
+
+const teamTableContainer = {
+  marginTop: 14,
+  background:
+    "linear-gradient(180deg, rgba(8,12,20,0.7), rgba(12,18,28,0.9))",
+  borderRadius: 20,
+  padding: 16,
+  color: "#e6eef8",
+  boxShadow: "0 10px 30px rgba(0,0,0,0.5)",
+  animation: "detailsFade .18s ease",
+  maxHeight: "500px",
+  overflowY: "auto",
+};
+
+const teamTableHeader = {
+  fontSize: 14,
+  fontWeight: 700,
+  marginBottom: 12,
+  color: "#e6eef8",
+  display: "flex",
+  alignItems: "center",
+  gap: 8,
+};
+
+const teamGroup = {
+  background: "rgba(15,23,42,0.9)",
+  borderRadius: 12,
+  padding: 12,
+  marginBottom: 12,
+  border: "1px solid rgba(59,130,246,0.3)",
+};
+
+const teamNameInput = {
+  width: "100%",
+  background: "rgba(30,41,59,0.8)",
+  border: "1px solid rgba(59,130,246,0.4)",
+  color: "#e6eef8",
+  padding: "8px 12px",
+  borderRadius: 8,
+  fontSize: 13,
+  marginBottom: 10,
+};
+
+const teamNameLabel = {
+  background: "rgba(59,130,246,0.2)",
+  color: "#60a5fa",
+  padding: "4px 8px",
+  borderRadius: 6,
+  fontSize: 11,
+  fontWeight: 600,
+  marginBottom: 4,
+};
+
+const slotContainer = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))",
+  gap: 8,
+};
+
+const emptySlot = {
+  border: "2px dashed rgba(148,163,184,0.4)",
+  borderRadius: 10,
+  padding: 12,
+  textAlign: "center",
+  cursor: "pointer",
+  transition: "all 0.2s ease",
+  background: "rgba(15,23,42,0.5)",
+  color: "rgba(209,213,219,0.6)",
+  fontSize: 12,
+};
+
+const filledSlot = {
+  border: "2px solid rgba(59,130,246,0.6)",
+  borderRadius: 10,
+  padding: 10,
+  background: "rgba(59,130,246,0.1)",
+  fontSize: 12,
+};
+
+const slotUsername = {
+  fontWeight: 600,
+  color: "#e6eef8",
+  marginBottom: 4,
+};
+
+const slotId = {
+  fontSize: 11,
+  color: "rgba(209,213,219,0.9)",
+  marginBottom: 6,
+};
+
+const copyBtnSmall = {
+  padding: "4px 8px",
+  borderRadius: 6,
+  border: "1px solid rgba(255,255,255,0.2)",
+  background: "rgba(255,255,255,0.05)",
+  color: "#e6eef8",
+  cursor: "pointer",
+  fontSize: 10,
+};
+
+const lockedMessage = {
+  background: "rgba(239,68,68,0.15)",
+  border: "1px solid rgba(239,68,68,0.4)",
+  borderRadius: 12,
+  padding: 14,
+  color: "#fca5a5",
+  fontSize: 13,
+  textAlign: "center",
+  fontWeight: 500,
 };
 
 const smallCopyBtn = {
@@ -276,6 +420,16 @@ const badgeCount = {
   color: "#e5e7eb",
 };
 
+const prizePoolTag = {
+  background: "linear-gradient(90deg, #10b981, #34d399)",
+  color: "#042617",
+  padding: "6px 12px",
+  borderRadius: 999,
+  fontSize: 13,
+  fontWeight: 700,
+  marginTop: 6,
+};
+
 /* ---------- Component ---------- */
 export default function TournamentsB2B() {
   const [tournaments, setTournaments] = useState([]);
@@ -286,11 +440,17 @@ export default function TournamentsB2B() {
   const [loadingJoin, setLoadingJoin] = useState({});
   const [detailsById, setDetailsById] = useState({});
   const [participantsById, setParticipantsById] = useState({});
+  const [teamDataById, setTeamDataById] = useState({});
   const [confirmJoinId, setConfirmJoinId] = useState(null);
   const [cardMessage, setCardMessage] = useState({});
   const [error, setError] = useState("");
   const [hoverId, setHoverId] = useState(null);
   const [nowMs, setNowMs] = useState(Date.now());
+  const [loadingTeams, setLoadingTeams] = useState({});
+  const [teamNameDraft, setTeamNameDraft] = useState({});
+
+  const userRaw = JSON.parse(localStorage.getItem("user") || "null");
+  const currentUserId = userRaw?.id;
 
   const refs = useRef({});
 
@@ -299,60 +459,78 @@ export default function TournamentsB2B() {
     return () => clearInterval(id);
   }, []);
 
-  useEffect(() => {
-    async function fetchData() {
-      try {
-        const res = await axios.get("http://localhost:5000/api/b2b");
-        const arr = Array.isArray(res.data) ? res.data : [];
-        const normalized = arr.map((item, idx) => ({
-          ...item,
-          __id: String(item.id ?? idx),
-        }));
-        setTournaments(normalized);
+  const refreshB2BAndJoined = async () => {
+    try {
+      // Always fresh list for realtime seats
+      const res = await axios.get(
+        `http://localhost:5000/api/b2b?ts=${Date.now()}`,
+        { headers: { "Cache-Control": "no-cache" } }
+      );
 
-        const token = localStorage.getItem("token");
-        if (token) {
-          const joined = await axios.get(
-            "http://localhost:5000/api/b2b/joined/my",
-            {
-              headers: { Authorization: `Bearer ${token}` },
-            }
-          );
-          setJoinedIds(
-            Array.isArray(joined.data)
-              ? joined.data.map((x) => String(x))
-              : []
-          );
-        } else {
-          setJoinedIds([]);
-        }
-      } catch (err) {
-        console.error(err);
-        setError(
-          err.response?.data?.message || "Failed to load B2B tournaments"
+      const arr = Array.isArray(res.data) ? res.data : [];
+      const normalized = arr.map((item, idx) => ({
+        ...item,
+        __id: String(item.id ?? idx),
+      }));
+      setTournaments(normalized);
+
+      // Always fresh joined list too (fix 304 issue)
+      const token = localStorage.getItem("token");
+      if (token) {
+        const joined = await axios.get(
+          `http://localhost:5000/api/b2b/joined/my?ts=${Date.now()}`,
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "Cache-Control": "no-cache",
+              Pragma: "no-cache",
+            },
+          }
         );
-      }
-    }
 
-    fetchData();
+        setJoinedIds(Array.isArray(joined.data) ? joined.data.map((x) => String(x)) : []);
+      } else {
+        setJoinedIds([]);
+      }
+    } catch (err) {
+      console.error(err);
+      setError(err.response?.data?.message || "Failed to load B2B tournaments");
+    }
+  };
+
+  useEffect(() => {
+    refreshB2BAndJoined();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const showJoinConfirmation = (idStr, rawDate, entryFee) => {
+  // realtime: poll every 5 seconds
+  useEffect(() => {
+    const pollId = setInterval(() => refreshB2BAndJoined(), 5000);
+    return () => clearInterval(pollId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // refresh when tab focuses
+  useEffect(() => {
+    const onFocus = () => refreshB2BAndJoined();
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const showJoinConfirmation = (idStr, rawDate) => {
     if (joinedIds.includes(idStr) || isJoinClosed(rawDate, nowMs)) return;
     setConfirmJoinId(idStr);
     setCardMessage((s) => ({ ...s, [idStr]: "" }));
   };
 
-  const confirmJoinYes = async (idStr, rawDate, entryFee) => {
+  const confirmJoinYes = async (idStr, rawDate) => {
     setConfirmJoinId(null);
     setLoadingJoin((s) => ({ ...s, [idStr]: true }));
 
     const token = localStorage.getItem("token");
     if (!token) {
-      setCardMessage((s) => ({
-        ...s,
-        [idStr]: "❌ Please log in to join.",
-      }));
+      setCardMessage((s) => ({ ...s, [idStr]: "❌ Please log in to join." }));
       setLoadingJoin((s) => ({ ...s, [idStr]: false }));
       return;
     }
@@ -375,20 +553,20 @@ export default function TournamentsB2B() {
 
       setJoinedIds((s) => (s.includes(idStr) ? s : [...s, idStr]));
 
-      // update local joined_count / slots if backend returns them
       const { joined_count, slots } = res.data || {};
       setTournaments((prev) =>
         prev.map((t) =>
           String(t.__id ?? t.id) === String(idStr)
             ? {
                 ...t,
-                joined_count:
-                  joined_count ?? Number(t.joined_count || 0) + 1,
+                joined_count: joined_count ?? Number(t.joined_count || 0) + 1,
                 slots: slots ?? t.slots,
               }
             : t
         )
       );
+
+      await refreshB2BAndJoined();
 
       setCardMessage((s) => ({
         ...s,
@@ -404,17 +582,15 @@ export default function TournamentsB2B() {
         }));
       } else if (
         msg === "Already joined tournament" ||
-        msg === "Already joined match"
+        msg === "Already joined match" ||
+        msg === "Tournament is locked"
       ) {
         setCardMessage((s) => ({
           ...s,
-          [idStr]: "ℹ️ You have already joined this tournament.",
+          [idStr]: "ℹ️ You have already joined or tournament is locked.",
         }));
       } else if (msg === "Match is full") {
-        setCardMessage((s) => ({
-          ...s,
-          [idStr]: "❌ Match is already full.",
-        }));
+        setCardMessage((s) => ({ ...s, [idStr]: "❌ Match is already full." }));
       } else {
         setCardMessage((s) => ({
           ...s,
@@ -429,9 +605,7 @@ export default function TournamentsB2B() {
   const confirmJoinNo = (idStr) => {
     setConfirmJoinId(null);
     setCardMessage((s) => ({ ...s, [idStr]: "ℹ️ Join cancelled." }));
-    setTimeout(() => {
-      setCardMessage((s) => ({ ...s, [idStr]: "" }));
-    }, 2000);
+    setTimeout(() => setCardMessage((s) => ({ ...s, [idStr]: "" })), 2000);
   };
 
   const fetchDetails = async (idStr) => {
@@ -442,21 +616,51 @@ export default function TournamentsB2B() {
     }
     setDetailsById((s) => ({ ...s, [idStr]: { loading: true } }));
     try {
-      const res = await axios.get(
-        `http://localhost:5000/api/b2b/${idStr}/details`,
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      setDetailsById((s) => ({
-        ...s,
+      const res = await axios.get(`http://localhost:5000/api/b2b/${idStr}/details`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setDetailsById((s) => ({ ...s, [idStr]: { loading: false, data: res.data } }));
+    } catch (err) {
+      const msg = err.response?.data?.message || "Failed to load details";
+      setDetailsById((s) => ({ ...s, [idStr]: { loading: false, error: msg } }));
+    }
+  };
+
+  const fetchTeamData = async (idStr) => {
+    const token = localStorage.getItem("token");
+    if (!token) return;
+
+    setLoadingTeams((prev) => ({ ...prev, [idStr]: true }));
+    try {
+      const res = await axios.get(`http://localhost:5000/api/b2b/${idStr}/teams`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      setTeamDataById((prev) => ({
+        ...prev,
         [idStr]: { loading: false, data: res.data },
       }));
+
+      const groups = res.data?.groups || [];
+      setTeamNameDraft((prev) => {
+        const next = { ...prev };
+        const existing = next[idStr] ? { ...next[idStr] } : {};
+        (groups || []).forEach((g) => {
+          if (existing[g.group_no] === undefined) existing[g.group_no] = g.team_name || "";
+        });
+        next[idStr] = existing;
+        return next;
+      });
     } catch (err) {
-      const msg =
-        err.response?.data?.message || "Failed to load details";
-      setDetailsById((s) => ({
-        ...s,
-        [idStr]: { loading: false, error: msg },
+      setTeamDataById((prev) => ({
+        ...prev,
+        [idStr]: {
+          loading: false,
+          error: err.response?.data?.message || "Failed to load teams",
+        },
       }));
+    } finally {
+      setLoadingTeams((prev) => ({ ...prev, [idStr]: false }));
     }
   };
 
@@ -471,21 +675,16 @@ export default function TournamentsB2B() {
     }
     setParticipantsById((s) => ({ ...s, [idStr]: { loading: true } }));
     try {
-      const res = await axios.get(
-        `http://localhost:5000/api/b2b/${idStr}/participants`,
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
+      const res = await axios.get(`http://localhost:5000/api/b2b/${idStr}/participants`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
       setParticipantsById((s) => ({
         ...s,
         [idStr]: { loading: false, data: res.data.participants || [] },
       }));
     } catch (err) {
-      const msg =
-        err.response?.data?.message || "Failed to load participants";
-      setParticipantsById((s) => ({
-        ...s,
-        [idStr]: { loading: false, error: msg },
-      }));
+      const msg = err.response?.data?.message || "Failed to load participants";
+      setParticipantsById((s) => ({ ...s, [idStr]: { loading: false, error: msg } }));
     }
   };
 
@@ -498,23 +697,52 @@ export default function TournamentsB2B() {
   const toggleDetails = (idStr) => {
     setOpenPlayersId(null);
     setOpenDescriptionId(null);
-    if (openDetailsId === idStr) {
-      setOpenDetailsId(null);
-      return;
-    }
+
+    if (openDetailsId === idStr) return setOpenDetailsId(null);
     setOpenDetailsId(idStr);
     fetchDetails(idStr);
   };
 
-  const togglePlayers = (idStr) => {
+  const togglePlayers = (idStr, mode) => {
     setOpenDetailsId(null);
     setOpenDescriptionId(null);
-    if (openPlayersId === idStr) {
-      setOpenPlayersId(null);
-      return;
-    }
+
+    if (openPlayersId === idStr) return setOpenPlayersId(null);
+
     setOpenPlayersId(idStr);
-    fetchParticipants(idStr);
+
+    if (normalizeMode(mode) !== "solo") fetchTeamData(idStr);
+    else fetchParticipants(idStr);
+  };
+
+  const selectSlot = async (tournamentId, groupNo, slotNo) => {
+    const token = localStorage.getItem("token");
+    try {
+      await axios.post(
+        `http://localhost:5000/api/b2b/${tournamentId}/teams/${groupNo}/slot/${slotNo}`,
+        {},
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      await fetchTeamData(tournamentId);
+      await refreshB2BAndJoined();
+    } catch (err) {
+      alert(err.response?.data?.message || "Failed to select slot");
+    }
+  };
+
+  const updateTeamName = async (tournamentId, groupNo, teamName) => {
+    const token = localStorage.getItem("token");
+    try {
+      await axios.put(
+        `http://localhost:5000/api/b2b/${tournamentId}/teams/${groupNo}/name`,
+        { team_name: teamName },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      await fetchTeamData(tournamentId);
+      await refreshB2BAndJoined();
+    } catch (err) {
+      alert(err.response?.data?.message || "Failed to update team name");
+    }
   };
 
   const copyText = async (text) => {
@@ -533,9 +761,7 @@ export default function TournamentsB2B() {
     backgroundRepeat: "no-repeat",
   };
 
-  const visibleTournaments = tournaments.filter(
-    (t) => !isTournamentExpired(t.date, nowMs)
-  );
+  const visibleTournaments = tournaments.filter((t) => !isTournamentExpired(t.date, nowMs));
 
   return (
     <div style={pageStyle}>
@@ -544,11 +770,11 @@ export default function TournamentsB2B() {
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <BackButton />
             <h1 style={{ fontSize: 34, margin: 0, fontWeight: 800 }}>
-              B2B – 3 Matches, 3 Maps
+              B2B Tournaments
             </h1>
           </div>
           <div style={{ color: "rgba(230,238,248,0.85)" }}>
-            Play back-to-back BR matches on three different maps.
+            Join tournaments, form teams and compete!
           </div>
         </div>
 
@@ -573,18 +799,34 @@ export default function TournamentsB2B() {
             const isDetailsOpen = openDetailsId === idStr;
             const isPlayersOpen = openPlayersId === idStr;
             const isDescriptionOpen = openDescriptionId === idStr;
+
             const matchLabel = formatMatchLabel(t.date);
             const joinClosed = isJoinClosed(t.date, nowMs);
             const isConfirming = confirmJoinId === idStr;
 
-            const vsLine =
-              t.team_a_name && t.team_b_name
-                ? `${t.team_a_name} vs ${t.team_b_name}`
-                : null;
+            const isLocked = t.is_locked === true || t.is_locked === "true";
 
             const joinedCount = Number(t.joined_count || 0);
             const slots = Number(t.slots || 0);
             const isFull = slots > 0 && joinedCount >= slots;
+
+            const mode = String(t.mode || "").toLowerCase();
+            const isTeamMode = mode === "duo" || mode === "squad";
+
+            const teamInfo = teamDataById[idStr]?.data;
+
+            // Seats list-first, fallback to team info
+            const teamSeatsUsed = Number(t.teams_joined ?? teamInfo?.teams_joined ?? 0);
+            const teamSeatsTotal = Number(
+              t.total_teams ?? teamInfo?.total_teams ?? (mode === "duo" ? 24 : 12)
+            );
+
+            const playerUsed = Number(t.players_joined ?? teamInfo?.players_joined ?? 0);
+            const playerTotal = Number(
+              t.total_players ??
+                teamInfo?.total_players ??
+                teamSeatsTotal * (mode === "duo" ? 2 : 4)
+            );
 
             let imageCandidate = thumbDefault;
             if (t.image && String(t.image).startsWith("http")) {
@@ -620,9 +862,17 @@ export default function TournamentsB2B() {
                         }
                       }}
                     />
+
                     <div>
                       <h3 style={titleStyle}>{t.name}</h3>
-                      {vsLine && (
+
+                      {t.prize_pool && (
+                        <div style={prizePoolTag}>Prize Pool: ₹{t.prize_pool}</div>
+                      )}
+
+                      <div style={modeBadge}>Mode: {getModeLabel(t.mode)}</div>
+
+                      {t.team_a_name && t.team_b_name && (
                         <div
                           style={{
                             fontSize: 12,
@@ -630,12 +880,14 @@ export default function TournamentsB2B() {
                             marginTop: 2,
                           }}
                         >
-                          {vsLine}
+                          {t.team_a_name} vs {t.team_b_name}
                         </div>
                       )}
+
                       <div style={metaStyle}>
                         Entry fee: ₹{t.entry_fee} • Status: {t.status}
                       </div>
+
                       <div
                         style={{
                           marginTop: 4,
@@ -645,6 +897,8 @@ export default function TournamentsB2B() {
                       >
                         Match time: {matchLabel}
                       </div>
+
+                      {/* ✅ Seats ONLY (removed Full/Left) */}
                       <div
                         style={{
                           marginTop: 4,
@@ -652,16 +906,31 @@ export default function TournamentsB2B() {
                           color: "rgba(226,232,240,0.9)",
                         }}
                       >
-                        Seats: {joinedCount}/{slots || "—"}
-                        {isFull && " • Full"}
+                        {isTeamMode ? (
+                          <>
+                            Seats: {teamSeatsUsed}/{teamSeatsTotal}{" "}
+                            <span style={{ fontSize: 11, opacity: 0.75 }}>
+                              ({playerUsed}/{playerTotal})
+                            </span>
+                          </>
+                        ) : (
+                          <>
+                            Seats: {joinedCount}/{slots || "—"}
+                            {isFull && " • Full"}
+                          </>
+                        )}
                       </div>
+
+                      {isLocked && (
+                        <div style={lockPill}>
+                          This tournament is locked by admin. You can no longer make changes.
+                        </div>
+                      )}
                     </div>
                   </div>
 
-                  {joinClosed && (
-                    <div style={infoPill}>
-                      Match ID &amp; password in 5 min
-                    </div>
+                  {joinClosed && !isLocked && (
+                    <div style={infoPill}>Match ID &amp; password in 5 min</div>
                   )}
 
                   {cardMessage[idStr] && !isConfirming && (
@@ -691,6 +960,7 @@ export default function TournamentsB2B() {
                   )}
                 </div>
 
+                {/* ---- PART B (same flow as yours) ---- */}
                 <div>
                   <div style={buttonsRow}>
                     {joined ? (
@@ -719,44 +989,35 @@ export default function TournamentsB2B() {
                             whiteSpace: "nowrap",
                           }}
                         >
-                          ℹ️ Entry fee ₹{t.entry_fee} will be deducted
+                          Entry fee ₹{t.entry_fee} will be deducted
                         </div>
+
                         <button
                           style={btnConfirmYes}
-                          onClick={() =>
-                            confirmJoinYes(idStr, t.date, t.entry_fee)
-                          }
-                          disabled={loadingJoin[idStr] || isFull}
+                          onClick={() => confirmJoinYes(idStr, t.date)}
+                          disabled={loadingJoin[idStr] || isFull || isLocked}
                         >
-                          ✅ Yes, Join
+                          Yes, Join
                         </button>
-                        <button
-                          style={btnConfirmNo}
-                          onClick={() => confirmJoinNo(idStr)}
-                        >
-                          ❌ No
+
+                        <button style={btnConfirmNo} onClick={() => confirmJoinNo(idStr)}>
+                          No
                         </button>
                       </div>
                     ) : (
                       <button
                         style={{
                           ...btnPrimary,
-                          opacity:
-                            joinClosed || isFull || loadingJoin[idStr]
-                              ? 0.5
-                              : 1,
-                          cursor:
-                            joinClosed || isFull
-                              ? "not-allowed"
-                              : "pointer",
+                          opacity: joinClosed || isFull || isLocked || loadingJoin[idStr] ? 0.5 : 1,
+                          cursor: joinClosed || isFull || isLocked ? "not-allowed" : "pointer",
                         }}
-                        onClick={() =>
-                          showJoinConfirmation(idStr, t.date, t.entry_fee)
-                        }
-                        disabled={loadingJoin[idStr] || joinClosed || isFull}
+                        onClick={() => showJoinConfirmation(idStr, t.date)}
+                        disabled={loadingJoin[idStr] || joinClosed || isFull || isLocked}
                       >
                         {isFull
                           ? "Match full"
+                          : isLocked
+                          ? "Locked"
                           : loadingJoin[idStr]
                           ? "Joining..."
                           : joinClosed
@@ -775,8 +1036,8 @@ export default function TournamentsB2B() {
 
                     <button
                       style={btnSecondary}
-                      onClick={() => togglePlayers(idStr)}
-                      disabled={isConfirming}
+                      onClick={() => togglePlayers(idStr, t.mode)}
+                      disabled={isConfirming || normalizeMode(t.mode) === "solo"}
                     >
                       {isPlayersOpen ? "Hide players" : "Players"}
                     </button>
@@ -796,87 +1057,47 @@ export default function TournamentsB2B() {
                         <div>Loading details…</div>
                       ) : detailsById[idStr]?.data ? (
                         <>
-                          <div
-                            style={{
-                              fontSize: 12,
-                              color: "rgba(230,238,248,0.9)",
-                            }}
-                          >
+                          <div style={{ fontSize: 12, color: "rgba(230,238,248,0.9)" }}>
                             Match time
                           </div>
-                          <div
-                            style={{
-                              fontWeight: 700,
-                              fontSize: 18,
-                              marginBottom: 8,
-                            }}
-                          >
+
+                          <div style={{ fontWeight: 700, fontSize: 18, marginBottom: 8 }}>
                             {matchLabel}
                           </div>
 
-                          <div
-                            style={{
-                              display: "flex",
-                              gap: 18,
-                              marginBottom: 10,
-                            }}
-                          >
+                          <div style={{ display: "flex", gap: 18, marginBottom: 10 }}>
                             <div>
-                              <div style={{ fontSize: 12, opacity: 0.8 }}>
-                                Room ID
-                              </div>
-                              <div
-                                style={{
-                                  fontWeight: 700,
-                                  fontSize: 16,
-                                }}
-                              >
+                              <div style={{ fontSize: 12, opacity: 0.8 }}>Room ID</div>
+                              <div style={{ fontWeight: 700, fontSize: 16 }}>
                                 {detailsById[idStr].data.room_id}
                               </div>
                             </div>
 
                             <div>
-                              <div style={{ fontSize: 12, opacity: 0.8 }}>
-                                Password
-                              </div>
-                              <div
-                                style={{
-                                  fontWeight: 700,
-                                  fontSize: 16,
-                                }}
-                              >
+                              <div style={{ fontSize: 12, opacity: 0.8 }}>Password</div>
+                              <div style={{ fontWeight: 700, fontSize: 16 }}>
                                 {detailsById[idStr].data.room_password}
                               </div>
                             </div>
                           </div>
 
-                          <div
-                            style={{
-                              display: "flex",
-                              gap: 8,
-                              alignItems: "center",
-                            }}
-                          >
+                          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                             <button
                               style={smallCopyBtn}
                               type="button"
-                              onClick={() =>
-                                copyText(detailsById[idStr].data.room_id)
-                              }
+                              onClick={() => copyText(detailsById[idStr].data.room_id)}
                             >
                               Copy ID
                             </button>
+
                             <button
                               style={smallCopyBtn}
                               type="button"
-                              onClick={() =>
-                                copyText(
-                                  detailsById[idStr].data.room_password
-                                )
-                              }
+                              onClick={() => copyText(detailsById[idStr].data.room_password)}
                             >
                               Copy password
                             </button>
+
                             <button
                               style={smallCopyBtn}
                               type="button"
@@ -891,14 +1112,8 @@ export default function TournamentsB2B() {
                           </div>
                         </>
                       ) : (
-                        <div
-                          style={{
-                            color: "rgba(230,238,248,0.85)",
-                            marginBottom: 4,
-                          }}
-                        >
-                          {detailsById[idStr]?.error ||
-                            "Room not configured yet"}
+                        <div style={{ color: "rgba(230,238,248,0.85)", marginBottom: 4 }}>
+                          {detailsById[idStr]?.error || "Room not configured yet"}
                         </div>
                       )}
                     </div>
@@ -916,6 +1131,7 @@ export default function TournamentsB2B() {
                       >
                         Tournament Description
                       </div>
+
                       {t.description ? (
                         <div
                           style={{
@@ -928,12 +1144,7 @@ export default function TournamentsB2B() {
                           {t.description}
                         </div>
                       ) : (
-                        <div
-                          style={{
-                            fontSize: 14,
-                            color: "rgba(230,238,248,0.7)",
-                          }}
-                        >
+                        <div style={{ fontSize: 14, color: "rgba(230,238,248,0.7)" }}>
                           No description available for this tournament.
                         </div>
                       )}
@@ -941,100 +1152,204 @@ export default function TournamentsB2B() {
                   )}
 
                   {isPlayersOpen && (
-                    <div style={participantsPanel}>
-                      <div
-                        style={{
-                          fontSize: 12,
-                          fontWeight: 700,
-                          marginBottom: 4,
-                        }}
-                      >
-                        PARTICIPANTS
-                      </div>
-                      <div
-                        style={{
-                          fontSize: 12,
-                          color: "rgba(209,213,219,0.9)",
-                          marginBottom: 8,
-                        }}
-                      >
-                        Joined players for this tournament
-                      </div>
-                      <div style={participantsInner}>
-                        {participantsById[idStr]?.loading ? (
-                          <div style={{ fontSize: 13 }}>
-                            Loading participants…
-                          </div>
-                        ) : participantsById[idStr]?.data &&
-                          participantsById[idStr].data.length > 0 ? (
-                          participantsById[idStr].data.map((p, idx) => (
-                            <div key={p.id || idx} style={participantRow}>
-                              <div style={participantLeft}>
-                                <span
-                                  style={{
-                                    fontWeight: 600,
-                                    fontSize: 13,
-                                    textTransform: "capitalize",
-                                  }}
-                                >
-                                  {p.name || "Unknown"}
-                                </span>
-                                <span
-                                  style={{
-                                    fontSize: 12,
-                                    color: "rgba(209,213,219,0.95)",
-                                  }}
-                                >
-                                  Freefire ID:{" "}
-                                  {p.freefireId ? p.freefireId : "—"}
-                                </span>
-                              </div>
+                    <>
+                      {normalizeMode(t.mode) === "solo" ? (
+                        <div style={participantsPanel}>
+                          <div style={teamTableHeader}>Solo Mode - No Team Selection Required</div>
+
+                          <div style={participantsInner}>
+                            {participantsById[idStr]?.loading ? (
+                              <div style={{ fontSize: 13 }}>Loading participants…</div>
+                            ) : participantsById[idStr]?.data &&
+                              participantsById[idStr].data.length > 0 ? (
+                              participantsById[idStr].data.map((p, idx) => (
+                                <div key={p.id || idx} style={participantRow}>
+                                  <div style={participantLeft}>
+                                    <span
+                                      style={{
+                                        fontWeight: 600,
+                                        fontSize: 13,
+                                        textTransform: "capitalize",
+                                      }}
+                                    >
+                                      {p.name || "Unknown"}
+                                    </span>
+                                    <span
+                                      style={{
+                                        fontSize: 12,
+                                        color: "rgba(209,213,219,0.95)",
+                                      }}
+                                    >
+                                      Freefire ID: {p.freefireId ? p.freefireId : "—"}
+                                    </span>
+                                  </div>
+
+                                  <div
+                                    style={{
+                                      display: "flex",
+                                      flexDirection: "column",
+                                      alignItems: "flex-end",
+                                      gap: 4,
+                                    }}
+                                  >
+                                    <span style={{ fontSize: 11, color: "rgba(209,213,219,0.8)" }}>
+                                      #{idx + 1}
+                                    </span>
+
+                                    {p.freefireId && (
+                                      <button
+                                        type="button"
+                                        style={smallCopyBtn}
+                                        onClick={() => copyText(p.freefireId)}
+                                      >
+                                        Copy ID
+                                      </button>
+                                    )}
+                                  </div>
+                                </div>
+                              ))
+                            ) : (
                               <div
                                 style={{
-                                  display: "flex",
-                                  flexDirection: "column",
-                                  alignItems: "flex-end",
-                                  gap: 4,
+                                  fontSize: 13,
+                                  color: "rgba(209,213,219,0.9)",
+                                  padding: "4px 2px",
                                 }}
                               >
-                                <span
-                                  style={{
-                                    fontSize: 11,
-                                    color: "rgba(209,213,219,0.8)",
-                                  }}
-                                >
-                                  #{idx + 1}
-                                </span>
-                                {p.freefireId && (
-                                  <button
-                                    type="button"
-                                    style={smallCopyBtn}
-                                    onClick={() => copyText(p.freefireId)}
-                                  >
-                                    Copy ID
-                                  </button>
-                                )}
+                                No players have joined yet.
                               </div>
-                            </div>
-                          ))
-                        ) : (
-                          <div
-                            style={{
-                              fontSize: 13,
-                              color: "rgba(209,213,219,0.9)",
-                              padding: "4px 2px",
-                            }}
-                          >
-                            No players have joined yet.
+                            )}
                           </div>
-                        )}
-                      </div>
-                      <div style={badgeCount}>
-                        {participantsById[idStr]?.data
-                          ? `${participantsById[idStr].data.length} players`
-                          : "0 players"}
-                      </div>
-                    </div>
+
+                          <div style={badgeCount}>
+                            {participantsById[idStr]?.data
+                              ? `${participantsById[idStr].data.length} players`
+                              : "0 players"}
+                          </div>
+                        </div>
+                      ) : (
+                        <div style={teamTableContainer}>
+                          <div style={teamTableHeader}>
+                            Team Selection - {getModeLabel(t.mode)} Mode
+                            {t.mode === "duo" && " (24 Groups, 2 Players each)"}
+                            {t.mode === "squad" && " (12 Groups, 4 Players each)"}
+                          </div>
+
+                          {isLocked && (
+                            <div style={lockedMessage}>
+                              Tournament is locked. Team changes are disabled.
+                            </div>
+                          )}
+
+                          {loadingTeams[idStr] ? (
+                            <div>Loading teams...</div>
+                          ) : teamDataById[idStr]?.error ? (
+                            <div>{teamDataById[idStr].error}</div>
+                          ) : teamDataById[idStr]?.data?.groups ? (
+                            teamDataById[idStr].data.groups.map((group) => {
+                              const isLeader =
+                                Number(group.leader_user_id) === Number(currentUserId);
+
+                              const draftValue = teamNameDraft?.[idStr]?.[group.group_no] ?? "";
+
+                              return (
+                                <div key={group.group_no} style={teamGroup}>
+                                  <div style={teamNameLabel}>
+                                    Group {group.group_no}
+                                    {group.leader_user_id ? " Leader" : ""}
+                                  </div>
+
+                                  {isLeader && !isLocked ? (
+                                    <input
+                                      style={teamNameInput}
+                                      placeholder="Enter team name (Leader only)"
+                                      value={draftValue}
+                                      onChange={(e) => {
+                                        const v = e.target.value;
+                                        setTeamNameDraft((prev) => ({
+                                          ...prev,
+                                          [idStr]: {
+                                            ...(prev[idStr] || {}),
+                                            [group.group_no]: v,
+                                          },
+                                        }));
+                                      }}
+                                      onBlur={() => {
+                                        const v = (teamNameDraft?.[idStr]?.[group.group_no] ?? "").trim();
+                                        if (v) updateTeamName(idStr, group.group_no, v);
+                                      }}
+                                      onKeyDown={(e) => {
+                                        if (e.key === "Enter") {
+                                          const v = (teamNameDraft?.[idStr]?.[group.group_no] ?? "").trim();
+                                          if (v) updateTeamName(idStr, group.group_no, v);
+                                          e.currentTarget.blur();
+                                        }
+                                      }}
+                                    />
+                                  ) : (
+                                    <div
+                                      style={{
+                                        ...teamNameInput,
+                                        background: "rgba(30,41,59,0.6)",
+                                        color: "rgba(209,213,219,0.7)",
+                                      }}
+                                    >
+                                      {group.team_name || "Team Name"}
+                                    </div>
+                                  )}
+
+                                  <div style={slotContainer}>
+                                    {group.players.map((player, slotIdx) => (
+                                      <div
+                                        key={slotIdx}
+                                        style={{
+                                          ...(!player.username ? emptySlot : filledSlot),
+                                          ...(player.username && !isLocked
+                                            ? { cursor: "default" }
+                                            : !player.username && !isLocked
+                                            ? { cursor: "pointer" }
+                                            : {}),
+                                        }}
+                                        onClick={
+                                          !player.username && !isLocked
+                                            ? () => selectSlot(idStr, group.group_no, slotIdx + 1)
+                                            : undefined
+                                        }
+                                      >
+                                        {player.username ? (
+                                          <>
+                                            <div style={slotUsername}>{player.username}</div>
+                                            <div style={slotId}>ID: {player.player_game_id}</div>
+                                            <button
+                                              style={copyBtnSmall}
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                copyText(player.player_game_id);
+                                              }}
+                                            >
+                                              Copy
+                                            </button>
+                                          </>
+                                        ) : (
+                                          <>
+                                            <div>Empty Slot</div>
+                                            <div style={{ fontSize: 11, opacity: 0.6 }}>
+                                              Slot {slotIdx + 1}
+                                            </div>
+                                          </>
+                                        )}
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              );
+                            })
+                          ) : (
+                            <div>No team data available</div>
+                          )}
+                        </div>
+                      )}
+                    </>
                   )}
                 </div>
               </div>

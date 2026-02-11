@@ -1,13 +1,25 @@
 // frontend/src/components/NotificationBell.jsx
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import axios from "axios";
 
 export default function NotificationBell() {
+  const API = process.env.REACT_APP_API_URL || "http://localhost:5000";
+
   const [open, setOpen] = useState(false);
   const [list, setList] = useState([]);
   const [unread, setUnread] = useState(0);
 
-  const token = localStorage.getItem("token");
+  const token = localStorage.getItem("token") || "";
+
+  const axiosCfg = useMemo(() => {
+    const headers = {
+      // ✅ forces revalidation so you get JSON (avoid 304-with-empty-body issues)
+      "Cache-Control": "no-cache",
+      Pragma: "no-cache",
+    };
+    if (token) headers.Authorization = `Bearer ${token}`;
+    return { headers };
+  }, [token]);
 
   const formatDate = (value) => {
     if (!value) return "-";
@@ -29,43 +41,52 @@ export default function NotificationBell() {
       setUnread(0);
       return;
     }
+
     try {
-      const res = await axios.get("http://localhost:5000/api/notifications", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res = await axios.get(`${API}/api/notifications?limit=80`, axiosCfg);
 
       const items = Array.isArray(res.data)
         ? res.data
         : Array.isArray(res.data?.notifications)
-        ? res.data.notifications
-        : [];
+          ? res.data.notifications
+          : [];
 
       setList(items);
-      setUnread(items.filter((n) => !n.read_flag).length);
+      setUnread(items.reduce((acc, n) => acc + (!n.read_flag ? 1 : 0), 0));
     } catch (err) {
       console.error("notification load error", err);
-      setList([]);
-      setUnread(0);
+      // Keep existing list instead of wiping UI on transient cache/network errors
+      // (so your dropdown doesn't flash empty).
     }
-  }, [token]);
+  }, [API, token, axiosCfg]);
 
   useEffect(() => {
     load();
-    const id = setInterval(load, 15000); // poll every 15s
+    const id = setInterval(load, 15000);
     return () => clearInterval(id);
   }, [load]);
 
+  useEffect(() => {
+    if (open) load();
+  }, [open, load]);
+
   const markAllRead = async () => {
     if (!token) return;
+
+    // optimistic UI
+    setList((prev) => prev.map((n) => ({ ...n, read_flag: true })));
+    setUnread(0);
+
     try {
       await axios.post(
-        "http://localhost:5000/api/notifications/mark-all-read",
+        `${API}/api/notifications/mark-all-read`,
         {},
-        { headers: { Authorization: `Bearer ${token}` } }
+        axiosCfg
       );
       load();
     } catch (err) {
       console.error("mark read error", err);
+      load(); // rollback by reloading
     }
   };
 
@@ -81,6 +102,9 @@ export default function NotificationBell() {
           cursor: "pointer",
           color: "#e5e7eb",
         }}
+        type="button"
+        aria-label="Notifications"
+        title="Notifications"
       >
         🔔
         {unread > 0 && (
@@ -136,6 +160,7 @@ export default function NotificationBell() {
                   color: "#60a5fa",
                   cursor: "pointer",
                 }}
+                type="button"
               >
                 Mark all read
               </button>
@@ -155,17 +180,13 @@ export default function NotificationBell() {
                 padding: "8px 10px",
                 marginBottom: 6,
                 borderRadius: 8,
-                background: n.read_flag
-                  ? "#020617"
-                  : "rgba(59,130,246,0.12)",
+                background: n.read_flag ? "#020617" : "rgba(59,130,246,0.12)",
                 border: "1px solid #1f2937",
                 fontSize: 12,
               }}
             >
               <div style={{ color: "#e5e7eb" }}>{n.message}</div>
-              <div
-                style={{ fontSize: 10, color: "#6b7280", marginTop: 2 }}
-              >
+              <div style={{ fontSize: 10, color: "#6b7280", marginTop: 2 }}>
                 {formatDate(n.created_at)}
               </div>
             </div>

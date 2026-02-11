@@ -32,10 +32,7 @@ export default function AddBalance() {
     }
 
     let num = Number(value);
-    if (Number.isNaN(num)) {
-      return;
-    }
-
+    if (Number.isNaN(num)) return;
     if (num < MIN_AMOUNT) num = MIN_AMOUNT;
 
     setAmount(num);
@@ -49,7 +46,7 @@ export default function AddBalance() {
         currency: order.currency || "INR",
         name: "Freefire Tournament",
         description: "Wallet top-up",
-        order_id: order.id,
+        order_id: String(order.id), // force string (safe)
         handler: function (response) {
           resolve(response);
         },
@@ -58,10 +55,7 @@ export default function AddBalance() {
             reject(new Error("Payment cancelled by user"));
           },
         },
-        prefill: {
-          email: "",
-          contact: "",
-        },
+        prefill: { email: "", contact: "" },
       };
 
       const rzp = new window.Razorpay(options);
@@ -81,13 +75,11 @@ export default function AddBalance() {
     }
 
     const numericAmount = Number(amount);
-
     if (!numericAmount || Number.isNaN(numericAmount)) {
       setIsError(true);
       setMsg("Please enter a valid amount.");
       return;
     }
-
     if (numericAmount < MIN_AMOUNT) {
       setIsError(true);
       setMsg(`Minimum top-up amount is ₹${MIN_AMOUNT}.`);
@@ -95,18 +87,12 @@ export default function AddBalance() {
     }
 
     setLoading(true);
-
     let createdOrder = null;
 
     try {
-      const res = await api.post("/payments/create-order", {
-        amount: numericAmount,
-      });
-
-      const { order, key } = res.data;
-      if (!order || !order.id) {
-        throw new Error("Failed to create payment order");
-      }
+      const res = await api.post("/payments/create-order", { amount: numericAmount });
+      const { order, key } = res.data || {};
+      if (!order || !order.id) throw new Error("Failed to create payment order");
       createdOrder = order;
 
       if (typeof window.Razorpay === "undefined") {
@@ -114,28 +100,35 @@ export default function AddBalance() {
           const s = document.createElement("script");
           s.src = "https://checkout.razorpay.com/v1/checkout.js";
           s.onload = resolve;
-          s.onerror = () =>
-            reject(new Error("Failed to load Razorpay SDK"));
+          s.onerror = () => reject(new Error("Failed to load Razorpay SDK"));
           document.body.appendChild(s);
         });
       }
 
-      const response = await openRazorpay(
-        order,
-        key || process.env.REACT_APP_RAZORPAY_KEY
-      );
+      const response = await openRazorpay(order, key || process.env.REACT_APP_RAZORPAY_KEY);
+
+      // Debug: check what Razorpay returned (important)
+      console.log("Razorpay success response:", response);
+
+      const roid = response?.razorpay_order_id;
+      const rpid = response?.razorpay_payment_id;
+      const rsig = response?.razorpay_signature;
+
+      // If these are missing, verify will fail; show clear error.
+      if (!roid || !rpid || !rsig) {
+        throw new Error(
+          "Razorpay response missing order_id/signature. Check that order_id is passed correctly."
+        );
+      }
 
       const verifyRes = await api.post("/payments/verify", {
-        razorpay_order_id: response.razorpay_order_id,
-        razorpay_payment_id: response.razorpay_payment_id,
-        razorpay_signature: response.razorpay_signature,
+        razorpay_order_id: roid,
+        razorpay_payment_id: rpid,
+        razorpay_signature: rsig,
       });
 
       if (verifyRes.data && verifyRes.data.ok) {
-        setMsg(
-          verifyRes.data.message ||
-            "Payment successful. Amount has been added to your wallet."
-        );
+        setMsg(verifyRes.data.message || "Payment successful. Amount has been added to your wallet.");
         setIsError(false);
 
         const userRaw = localStorage.getItem("user");
@@ -152,34 +145,18 @@ export default function AddBalance() {
         setTimeout(() => navigate("/profile"), 900);
       } else {
         setIsError(true);
-        setMsg(
-          verifyRes.data?.message ||
-            "Verification failed. No amount has been added."
-        );
+        setMsg(verifyRes.data?.message || "Verification failed. No amount has been added.");
       }
     } catch (err) {
-      // if user closed Razorpay, mark that order as rejected
-      if (
-        err?.message === "Payment cancelled by user" &&
-        createdOrder &&
-        createdOrder.id
-      ) {
+      if (err?.message === "Payment cancelled by user" && createdOrder?.id) {
         try {
-          await api.post("/payments/cancel-topup", {
-            orderId: createdOrder.id,
-          });
-        } catch {
-          // ignore secondary error
-        }
+          await api.post("/payments/cancel-topup", { orderId: createdOrder.id });
+        } catch {}
       }
 
       console.error("AddBalance error:", err?.response?.data || err.message);
       setIsError(true);
-      setMsg(
-        err?.response?.data?.message ||
-          err.message ||
-          "Payment failed or cancelled"
-      );
+      setMsg(err?.response?.data?.message || err.message || "Payment failed or cancelled");
     } finally {
       setLoading(false);
     }
@@ -205,8 +182,7 @@ export default function AddBalance() {
   };
 
   const numericAmount = Number(amount);
-  const invalidAmount =
-    !numericAmount || Number.isNaN(numericAmount) || numericAmount < MIN_AMOUNT;
+  const invalidAmount = !numericAmount || Number.isNaN(numericAmount) || numericAmount < MIN_AMOUNT;
 
   return (
     <div style={pageStyle}>
@@ -216,14 +192,7 @@ export default function AddBalance() {
           Minimum top-up is ₹{MIN_AMOUNT}. Choose or enter a higher amount.
         </p>
 
-        <div
-          style={{
-            display: "flex",
-            gap: 8,
-            flexWrap: "wrap",
-            marginBottom: 16,
-          }}
-        >
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 16 }}>
           {presets.map((p) => (
             <button
               key={p}
@@ -231,14 +200,8 @@ export default function AddBalance() {
               style={{
                 padding: "10px 14px",
                 borderRadius: 999,
-                border:
-                  Number(amount) === p
-                    ? "2px solid #60a5fa"
-                    : "1px solid rgba(255,255,255,0.06)",
-                background:
-                  Number(amount) === p
-                    ? "rgba(96,165,250,0.12)"
-                    : "transparent",
+                border: Number(amount) === p ? "2px solid #60a5fa" : "1px solid rgba(255,255,255,0.06)",
+                background: Number(amount) === p ? "rgba(96,165,250,0.12)" : "transparent",
                 color: "#fff",
                 cursor: "pointer",
               }}
@@ -246,6 +209,7 @@ export default function AddBalance() {
               ₹{p}
             </button>
           ))}
+
           <div style={{ flex: "1 1 100%", marginTop: 8 }}>
             <label style={{ fontSize: 13, color: "#9ca3af" }}>
               Custom amount (₹{MIN_AMOUNT}+)
@@ -284,13 +248,7 @@ export default function AddBalance() {
         )}
 
         {invalidAmount && (
-          <div
-            style={{
-              fontSize: 11,
-              color: "#fbbf24",
-              marginBottom: 6,
-            }}
-          >
+          <div style={{ fontSize: 11, color: "#fbbf24", marginBottom: 6 }}>
             Enter at least ₹{MIN_AMOUNT} to enable payment.
           </div>
         )}
@@ -311,10 +269,9 @@ export default function AddBalance() {
               fontWeight: 700,
             }}
           >
-            {loading
-              ? "Processing…"
-              : `Pay ₹${Number(amount || 0).toFixed(2)}`}
+            {loading ? "Processing…" : `Pay ₹${Number(amount || 0).toFixed(2)}`}
           </button>
+
           <button
             onClick={() => navigate(-1)}
             style={{
@@ -330,16 +287,8 @@ export default function AddBalance() {
           </button>
         </div>
 
-        <p
-          style={{
-            fontSize: 12,
-            color: "#9ca3af",
-            marginTop: 12,
-          }}
-        >
-          By proceeding you will be redirected to Razorpay. Payment is processed
-          securely; the backend verifies the signature before adding money to
-          your wallet.
+        <p style={{ fontSize: 12, color: "#9ca3af", marginTop: 12 }}>
+          By proceeding you will be redirected to Razorpay. The backend verifies the signature before adding money.
         </p>
       </div>
     </div>

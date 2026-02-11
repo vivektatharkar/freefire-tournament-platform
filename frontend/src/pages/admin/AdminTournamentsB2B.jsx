@@ -1,10 +1,5 @@
 // frontend/src/pages/admin/AdminTournamentsB2B.jsx
-import React, {
-  useEffect,
-  useState,
-  useContext,
-  useCallback,
-} from "react";
+import React, { useEffect, useState, useContext, useCallback } from "react";
 import axios from "axios";
 import { AuthContext } from "../../context/AuthContext";
 
@@ -105,6 +100,12 @@ const btnGhost = {
   cursor: "pointer",
 };
 
+const btnDanger = {
+  ...btnGhost,
+  border: "1px solid rgba(248,113,113,0.9)",
+  color: "#fecaca",
+};
+
 const smallText = { fontSize: 11, opacity: 0.85 };
 
 const tagBase = {
@@ -144,6 +145,7 @@ export default function AdminTournamentsB2B() {
   const [editingId, setEditingId] = useState(null);
   const [form, setForm] = useState({
     name: "",
+    mode: "solo",
     entry_fee: "",
     prize_pool: "",
     date: "",
@@ -166,14 +168,14 @@ export default function AdminTournamentsB2B() {
     [token]
   );
 
-  const statusTag = (status) => {
+  const statusTag = (status, is_locked) => {
+    if (is_locked) return <span style={tagLocked}>Locked</span>;
     switch ((status || "").toLowerCase()) {
       case "live":
         return <span style={tagLive}>Live</span>;
       case "completed":
+      case "complete":
         return <span style={tagCompleted}>Completed</span>;
-      case "locked":
-        return <span style={tagLocked}>Locked</span>;
       default:
         return <span style={tagUpcoming}>Upcoming</span>;
     }
@@ -207,6 +209,7 @@ export default function AdminTournamentsB2B() {
     setEditingId(null);
     setForm({
       name: "",
+      mode: "solo",
       entry_fee: "",
       prize_pool: "",
       date: "",
@@ -218,20 +221,19 @@ export default function AdminTournamentsB2B() {
 
   const startEdit = (t) => {
     let dateValue = "";
-    if (t.date) {
-      if (typeof t.date === "string") {
-        if (t.date.includes("T")) {
-          dateValue = t.date.slice(0, 16);
-        } else if (t.date.includes(" ")) {
-          const [d, time] = t.date.split(" ");
-          dateValue = `${d}T${time.slice(0, 5)}`;
-        }
+    if (t.date && typeof t.date === "string") {
+      if (t.date.includes("T")) {
+        dateValue = t.date.slice(0, 16);
+      } else if (t.date.includes(" ")) {
+        const [d, time] = t.date.split(" ");
+        dateValue = `${d}T${time.slice(0, 5)}`;
       }
     }
 
     setEditingId(t.id);
     setForm({
       name: t.name || "",
+      mode: (t.mode || "solo").toLowerCase(),
       entry_fee: t.entry_fee || "",
       prize_pool: t.prize_pool || "",
       date: dateValue,
@@ -251,6 +253,7 @@ export default function AdminTournamentsB2B() {
 
     const payload = {
       name: form.name,
+      mode: form.mode,
       entry_fee: Number(form.entry_fee) || 0,
       prize_pool: Number(form.prize_pool) || 0,
       date: form.date,
@@ -262,19 +265,14 @@ export default function AdminTournamentsB2B() {
     try {
       setSaving(true);
       setError("");
-      if (editingId) {
-        await axios.put(
-          `http://localhost:5000/api/admin/b2b/${editingId}`,
-          payload,
-          { headers: authHeaders() }
-        );
-      } else {
-        await axios.post("http://localhost:5000/api/admin/b2b", payload, {
-          headers: authHeaders(),
-        });
-      }
+
+      await axios.post("http://localhost:5000/api/admin/b2b", payload, {
+        headers: authHeaders(),
+      });
+
+      setEditingId(null);
+      startCreate();
       await loadTournaments();
-      if (!editingId) startCreate();
     } catch (e2) {
       setError(e2.response?.data?.message || "Failed to save tournament.");
     } finally {
@@ -283,18 +281,38 @@ export default function AdminTournamentsB2B() {
   };
 
   const toggleLock = async (t) => {
-    const next = t.status === "locked" ? "upcoming" : "locked";
+    const nextLocked = !t.is_locked;
     try {
       await axios.patch(
         `http://localhost:5000/api/admin/b2b/${t.id}/status`,
-        { status: next },
+        { is_locked: nextLocked },
         { headers: authHeaders() }
       );
       setItems((prev) =>
-        prev.map((x) => (x.id === t.id ? { ...x, status: next } : x))
+        prev.map((x) => (x.id === t.id ? { ...x, is_locked: nextLocked } : x))
       );
     } catch (e) {
       setError(e.response?.data?.message || "Failed to change status.");
+    }
+  };
+
+  const deleteMatch = async (t) => {
+    const ok = window.confirm(
+      `Delete B2B match #${t.id}?
+
+This will also delete participations (joined players) for this match.`
+    );
+    if (!ok) return;
+
+    try {
+      setError("");
+      await axios.delete(`http://localhost:5000/api/admin/b2b/${t.id}`, {
+        headers: authHeaders(),
+      });
+      setItems((prev) => prev.filter((x) => x.id !== t.id));
+      if (playersModalId === t.id) setPlayersModalId(null);
+    } catch (e) {
+      setError(e.response?.data?.message || "Failed to delete B2B match.");
     }
   };
 
@@ -330,7 +348,6 @@ export default function AdminTournamentsB2B() {
     }
   };
 
-  // if later you add B2B players table, you can reuse this pattern.
   const openPlayersModal = async (t) => {
     try {
       setPlayersModalId(t.id);
@@ -351,9 +368,7 @@ export default function AdminTournamentsB2B() {
   const renderDate = (raw) => {
     if (!raw) return "-";
     if (typeof raw === "string") {
-      if (raw.includes("T")) {
-        return raw.replace("T", " ").slice(0, 16);
-      }
+      if (raw.includes("T")) return raw.replace("T", " ").slice(0, 16);
       if (raw.includes(" ")) return raw.slice(0, 16);
     }
     return String(raw);
@@ -400,7 +415,9 @@ export default function AdminTournamentsB2B() {
               }}
             >
               <h3 style={{ margin: 0, fontSize: 16 }}>
-                {editingId ? "Edit tournament" : "Add new tournament"}
+                {editingId
+                  ? "Edit (creates new tournament)"
+                  : "Add new tournament"}
               </h3>
               {editingId && (
                 <button style={btnGhost} type="button" onClick={startCreate}>
@@ -419,6 +436,20 @@ export default function AdminTournamentsB2B() {
                   onChange={handleFormChange}
                   required
                 />
+              </div>
+
+              <div style={{ marginBottom: 8 }}>
+                <div style={label}>Mode (Solo/Duo/Squad)</div>
+                <select
+                  style={selectStyle}
+                  name="mode"
+                  value={form.mode}
+                  onChange={handleFormChange}
+                >
+                  <option value="solo">Solo</option>
+                  <option value="duo">Duo</option>
+                  <option value="squad">Squad</option>
+                </select>
               </div>
 
               <div
@@ -490,7 +521,6 @@ export default function AdminTournamentsB2B() {
                   <option value="upcoming">Upcoming</option>
                   <option value="live">Live</option>
                   <option value="completed">Completed</option>
-                  <option value="locked">Locked</option>
                 </select>
               </div>
 
@@ -516,7 +546,7 @@ export default function AdminTournamentsB2B() {
                   {saving
                     ? "Saving..."
                     : editingId
-                    ? "Save changes"
+                    ? "Save (create new)"
                     : "Create tournament"}
                 </button>
               </div>
@@ -543,6 +573,7 @@ export default function AdminTournamentsB2B() {
                 <tr>
                   <th style={th}>ID</th>
                   <th style={th}>Name</th>
+                  <th style={th}>Mode</th>
                   <th style={th}>Entry</th>
                   <th style={th}>Prize</th>
                   <th style={th}>Players</th>
@@ -556,27 +587,24 @@ export default function AdminTournamentsB2B() {
                   <tr key={t.id}>
                     <td style={td}>{t.id}</td>
                     <td style={td}>{t.name}</td>
+                    <td style={td}>{(t.mode || "solo").toUpperCase()}</td>
                     <td style={td}>₹{t.entry_fee}</td>
                     <td style={td}>₹{t.prize_pool}</td>
-                    <td style={td}>{t.slots || 0}</td>
+                    <td style={td}>
+                      {(t.joined_count || 0)}/{t.slots || 0}
+                    </td>
                     <td style={td}>
                       <div style={smallText}>{renderDate(t.date)}</div>
                     </td>
-                    <td style={td}>{statusTag(t.status)}</td>
+                    <td style={td}>{statusTag(t.status, t.is_locked)}</td>
                     <td style={td}>
-                      <div
-                        style={{
-                          display: "flex",
-                          flexWrap: "wrap",
-                          gap: 4,
-                        }}
-                      >
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
                         <button
                           style={actionBtn}
                           type="button"
                           onClick={() => startEdit(t)}
                         >
-                          Edit
+                          Edit (new)
                         </button>
                         <button
                           style={actionBtn}
@@ -597,7 +625,14 @@ export default function AdminTournamentsB2B() {
                           type="button"
                           onClick={() => toggleLock(t)}
                         >
-                          {t.status === "locked" ? "Unlock" : "Lock"}
+                          {t.is_locked ? "Unlock" : "Lock"}
+                        </button>
+                        <button
+                          style={{ ...btnDanger, padding: "4px 10px", fontSize: 11 }}
+                          type="button"
+                          onClick={() => deleteMatch(t)}
+                        >
+                          Delete
                         </button>
                       </div>
                     </td>
@@ -605,7 +640,7 @@ export default function AdminTournamentsB2B() {
                 ))}
                 {!loading && items.length === 0 && (
                   <tr>
-                    <td style={td} colSpan={8}>
+                    <td style={td} colSpan={9}>
                       No B2B tournaments yet.
                     </td>
                   </tr>

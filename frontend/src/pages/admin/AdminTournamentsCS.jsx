@@ -1,10 +1,5 @@
 // frontend/src/pages/admin/AdminTournamentsCS.jsx
-import React, {
-  useEffect,
-  useState,
-  useContext,
-  useCallback,
-} from "react";
+import React, { useEffect, useState, useContext, useCallback } from "react";
 import axios from "axios";
 import { AuthContext } from "../../context/AuthContext";
 
@@ -105,6 +100,12 @@ const btnGhost = {
   cursor: "pointer",
 };
 
+const btnDanger = {
+  ...btnGhost,
+  border: "1px solid rgba(248,113,113,0.9)",
+  color: "#fecaca",
+};
+
 const smallText = { fontSize: 11, opacity: 0.85 };
 
 const tagBase = {
@@ -148,7 +149,7 @@ export default function AdminTournamentsCS() {
     prize_pool: "",
     date: "",
     max_players: "",
-    map: "",
+    mode: "", // FIX: mode field (was map)
     description: "",
     status: "upcoming",
   });
@@ -184,7 +185,6 @@ export default function AdminTournamentsCS() {
     try {
       setLoading(true);
       setError("");
-      // correct CS admin list endpoint
       const res = await axios.get("http://localhost:5000/api/admin/cs", {
         headers: authHeaders(),
       });
@@ -213,7 +213,7 @@ export default function AdminTournamentsCS() {
       prize_pool: "",
       date: "",
       max_players: "",
-      map: "",
+      mode: "",
       description: "",
       status: "upcoming",
     });
@@ -221,14 +221,12 @@ export default function AdminTournamentsCS() {
 
   const startEdit = (t) => {
     let dateValue = "";
-    if (t.date) {
-      if (typeof t.date === "string") {
-        if (t.date.includes("T")) {
-          dateValue = t.date.slice(0, 16);
-        } else if (t.date.includes(" ")) {
-          const [d, time] = t.date.split(" ");
-          dateValue = `${d}T${time.slice(0, 5)}`;
-        }
+    if (t.date && typeof t.date === "string") {
+      if (t.date.includes("T")) {
+        dateValue = t.date.slice(0, 16);
+      } else if (t.date.includes(" ")) {
+        const [d, time] = t.date.split(" ");
+        dateValue = `${d}T${time.slice(0, 5)}`;
       }
     }
 
@@ -239,7 +237,7 @@ export default function AdminTournamentsCS() {
       prize_pool: t.prize_pool || "",
       date: dateValue,
       max_players: t.slots || "",
-      map: t.map || "",
+      mode: t.mode || "", // FIX
       description: t.description || "",
       status: t.status || "upcoming",
     });
@@ -250,6 +248,7 @@ export default function AdminTournamentsCS() {
     setForm((s) => ({ ...s, [name]: value }));
   };
 
+  // IMPORTANT: always create a new match (new id) when saving
   const handleSave = async (e) => {
     e.preventDefault();
 
@@ -259,7 +258,7 @@ export default function AdminTournamentsCS() {
       prize_pool: Number(form.prize_pool) || 0,
       date: form.date,
       slots: Number(form.max_players) || 0,
-      map: form.map,
+      mode: form.mode, // FIX: send mode (not map)
       description: form.description,
       status: form.status,
     };
@@ -267,21 +266,14 @@ export default function AdminTournamentsCS() {
     try {
       setSaving(true);
       setError("");
-      if (editingId) {
-        await axios.put(
-          `http://localhost:5000/api/admin/cs/${editingId}`,
-          payload,
-          { headers: authHeaders() }
-        );
-      } else {
-        await axios.post(
-          "http://localhost:5000/api/admin/cs",
-          payload,
-          { headers: authHeaders() }
-        );
-      }
+
+      await axios.post("http://localhost:5000/api/admin/cs", payload, {
+        headers: authHeaders(),
+      });
+
+      setEditingId(null);
+      startCreate();
       await loadMatches();
-      if (!editingId) startCreate();
     } catch (e2) {
       setError(e2.response?.data?.message || "Failed to save CS match.");
     } finally {
@@ -302,6 +294,26 @@ export default function AdminTournamentsCS() {
       );
     } catch (e) {
       setError(e.response?.data?.message || "Failed to change status.");
+    }
+  };
+
+  const deleteMatch = async (t) => {
+    const ok = window.confirm(
+      `Delete CS match #${t.id}?
+
+This will remove the match and joined players for it (depending on backend).`
+    );
+    if (!ok) return;
+
+    try {
+      setError("");
+      await axios.delete(`http://localhost:5000/api/admin/cs/${t.id}`, {
+        headers: authHeaders(),
+      });
+      setItems((prev) => prev.filter((x) => x.id !== t.id));
+      if (playersModalId === t.id) setPlayersModalId(null);
+    } catch (e) {
+      setError(e.response?.data?.message || "Failed to delete CS match.");
     }
   };
 
@@ -357,9 +369,7 @@ export default function AdminTournamentsCS() {
   const renderDate = (raw) => {
     if (!raw) return "-";
     if (typeof raw === "string") {
-      if (raw.includes("T")) {
-        return raw.replace("T", " ").slice(0, 16);
-      }
+      if (raw.includes("T")) return raw.replace("T", " ").slice(0, 16);
       if (raw.includes(" ")) return raw.slice(0, 16);
     }
     return String(raw);
@@ -406,7 +416,7 @@ export default function AdminTournamentsCS() {
               }}
             >
               <h3 style={{ margin: 0, fontSize: 16 }}>
-                {editingId ? "Edit match" : "Add new match"}
+                {editingId ? "Edit (creates new match)" : "Add new match"}
               </h3>
               {editingId && (
                 <button style={btnGhost} type="button" onClick={startCreate}>
@@ -493,13 +503,13 @@ export default function AdminTournamentsCS() {
                   />
                 </div>
                 <div>
-                  <div style={label}>Map / Mode</div>
+                  <div style={label}>Mode</div>
                   <input
                     style={inputStyle}
-                    name="map"
-                    value={form.map}
+                    name="mode"
+                    value={form.mode}
                     onChange={handleFormChange}
-                    placeholder="Clash Squad map"
+                    placeholder="Solo/Duo/Squad"
                   />
                 </div>
               </div>
@@ -515,7 +525,6 @@ export default function AdminTournamentsCS() {
                   <option value="upcoming">Upcoming</option>
                   <option value="live">Live</option>
                   <option value="completed">Completed</option>
-                  <option value="locked">Locked</option>
                 </select>
               </div>
 
@@ -541,7 +550,7 @@ export default function AdminTournamentsCS() {
                   {saving
                     ? "Saving..."
                     : editingId
-                    ? "Save changes"
+                    ? "Save (create new)"
                     : "Create match"}
                 </button>
               </div>
@@ -568,6 +577,7 @@ export default function AdminTournamentsCS() {
                 <tr>
                   <th style={th}>ID</th>
                   <th style={th}>Name</th>
+                  <th style={th}>Mode</th>
                   <th style={th}>Entry</th>
                   <th style={th}>Prize</th>
                   <th style={th}>Players</th>
@@ -581,6 +591,7 @@ export default function AdminTournamentsCS() {
                   <tr key={t.id}>
                     <td style={td}>{t.id}</td>
                     <td style={td}>{t.name}</td>
+                    <td style={td}>{t.mode || "-"}</td>
                     <td style={td}>₹{t.entry_fee}</td>
                     <td style={td}>₹{t.prize_pool}</td>
                     <td style={td}>
@@ -591,19 +602,13 @@ export default function AdminTournamentsCS() {
                     </td>
                     <td style={td}>{statusTag(t.status)}</td>
                     <td style={td}>
-                      <div
-                        style={{
-                          display: "flex",
-                          flexWrap: "wrap",
-                          gap: 4,
-                        }}
-                      >
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
                         <button
                           style={actionBtn}
                           type="button"
                           onClick={() => startEdit(t)}
                         >
-                          Edit
+                          Edit (new)
                         </button>
                         <button
                           style={actionBtn}
@@ -626,13 +631,20 @@ export default function AdminTournamentsCS() {
                         >
                           {t.status === "locked" ? "Unlock" : "Lock"}
                         </button>
+                        <button
+                          style={{ ...btnDanger, padding: "4px 10px", fontSize: 11 }}
+                          type="button"
+                          onClick={() => deleteMatch(t)}
+                        >
+                          Delete
+                        </button>
                       </div>
                     </td>
                   </tr>
                 ))}
                 {!loading && items.length === 0 && (
                   <tr>
-                    <td style={td} colSpan={8}>
+                    <td style={td} colSpan={9}>
                       No CS tournaments yet.
                     </td>
                   </tr>
@@ -676,10 +688,7 @@ export default function AdminTournamentsCS() {
                 style={inputStyle}
                 value={roomForm.room_password}
                 onChange={(e) =>
-                  setRoomForm((s) => ({
-                    ...s,
-                    room_password: e.target.value,
-                  }))
+                  setRoomForm((s) => ({ ...s, room_password: e.target.value }))
                 }
               />
             </div>

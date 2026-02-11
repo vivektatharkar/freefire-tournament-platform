@@ -1,7 +1,6 @@
 // frontend/src/pages/Tournaments.js
 import React, { useEffect, useRef, useState } from "react";
 import axios from "axios";
-
 import BackButton from "../components/BackButton";
 import bg from "../assets/bg.jpg";
 import thumbDefault from "../assets/thumb.jpg";
@@ -55,6 +54,7 @@ function formatMatchLabel(raw) {
   });
   return `${dateStr} at ${timeStr}`;
 }
+
 function isJoinClosed(rawDate, nowMs) {
   const dt = parseMatchDate(rawDate);
   if (!dt) return false;
@@ -62,6 +62,7 @@ function isJoinClosed(rawDate, nowMs) {
   const diffMin = diffMs / 60000;
   return diffMin <= 5;
 }
+
 function isTournamentExpired(rawDate, nowMs) {
   const dt = parseMatchDate(rawDate);
   if (!dt) return false;
@@ -69,7 +70,7 @@ function isTournamentExpired(rawDate, nowMs) {
   return nowMs > cutoff;
 }
 
-/* ---------- Styles ---------- */
+/* ---------- Styles (UNCHANGED) ---------- */
 const pageBase = {
   minHeight: "100vh",
   padding: "40px 24px",
@@ -245,6 +246,72 @@ const badgeCount = {
   color: "#e5e7eb",
 };
 
+/* ---- Team table styles ---- */
+const teamTableWrapper = {
+  marginTop: 10,
+  borderRadius: 16,
+  padding: 10,
+  background: "rgba(15,23,42,0.9)",
+};
+const teamTableHeaderRow = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  marginBottom: 6,
+};
+const teamGrid = {
+  display: "grid",
+  gap: 8,
+};
+const groupCard = {
+  borderRadius: 12,
+  padding: 10,
+  background:
+    "linear-gradient(180deg, rgba(15,23,42,0.9), rgba(15,23,42,0.98))",
+  border: "1px solid rgba(148,163,184,0.25)",
+};
+const groupTitleRow = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  marginBottom: 6,
+};
+const teamNameInput = {
+  background: "rgba(15,23,42,0.9)",
+  borderRadius: 999,
+  border: "1px solid rgba(148,163,184,0.5)",
+  padding: "4px 10px",
+  fontSize: 12,
+  color: "#e5e7eb",
+  outline: "none",
+};
+const groupSlotsRow = {
+  display: "grid",
+  gap: 6,
+};
+const slotBox = {
+  borderRadius: 10,
+  padding: "6px 8px",
+  border: "1px dashed rgba(148,163,184,0.35)",
+  background: "rgba(15,23,42,0.9)",
+  fontSize: 12,
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+};
+const slotEmpty = {
+  color: "rgba(156,163,175,0.8)",
+  fontStyle: "italic",
+};
+const slotFilled = {
+  color: "#e5e7eb",
+};
+const slotSelectBtn = {
+  ...smallCopyBtn,
+  fontSize: 11,
+};
+
+/* ---------- Component ---------- */
 export default function Tournaments() {
   const [tournaments, setTournaments] = useState([]);
   const [joinedIds, setJoinedIds] = useState([]);
@@ -259,6 +326,10 @@ export default function Tournaments() {
   const [hoverId, setHoverId] = useState(null);
   const [nowMs, setNowMs] = useState(Date.now());
   const [cardMessage, setCardMessage] = useState({});
+
+  const [teamDataByTournament, setTeamDataByTournament] = useState({});
+  const [teamLoading, setTeamLoading] = useState({});
+  const [teamError, setTeamError] = useState({});
   const refs = useRef({});
 
   useEffect(() => {
@@ -266,59 +337,69 @@ export default function Tournaments() {
     return () => clearInterval(id);
   }, []);
 
-  useEffect(() => {
-    async function fetchData() {
-      try {
-        const res = await axios.get("http://localhost:5000/api/tournaments");
-        const arr = Array.isArray(res.data) ? res.data : [];
-        const normalized = arr.map((item, idx) => ({
-          ...item,
-          __id: String(item.id ?? idx),
-        }));
-        setTournaments(normalized);
+  // ✅ New: one reusable function to refresh list + joined ids
+  const refreshTournamentsAndJoined = async () => {
+    try {
+      // cache-buster to avoid stale 304 on dynamic seats
+      const res = await axios.get(
+        `http://localhost:5000/api/tournaments?ts=${Date.now()}`,
+        { headers: { "Cache-Control": "no-cache" } }
+      );
 
-        const token = localStorage.getItem("token");
-        if (token) {
-          const joined = await axios.get(
-            "http://localhost:5000/api/tournaments/joined/my",
-            {
-              headers: { Authorization: `Bearer ${token}` },
-            }
-          );
-          setJoinedIds(
-            Array.isArray(joined.data)
-              ? joined.data.map((x) => String(x))
-              : []
-          );
-        } else {
-          setJoinedIds([]);
-        }
-      } catch (err) {
-        console.error(err);
-        setError(
-          err.response?.data?.message || "Failed to load tournaments"
+      const arr = Array.isArray(res.data) ? res.data : [];
+      const normalized = arr.map((item, idx) => ({
+        ...item,
+        __id: String(item.id ?? idx),
+      }));
+      setTournaments(normalized);
+
+      const token = localStorage.getItem("token");
+      if (token) {
+        const joined = await axios.get(
+          "http://localhost:5000/api/tournaments/joined/my",
+          { headers: { Authorization: `Bearer ${token}` } }
         );
+        setJoinedIds(
+          Array.isArray(joined.data) ? joined.data.map((x) => String(x)) : []
+        );
+      } else {
+        setJoinedIds([]);
       }
+    } catch (err) {
+      console.error(err);
+      setError(err.response?.data?.message || "Failed to load tournaments");
     }
-    fetchData();
-  }, []);
+  };
 
+  // initial load
+  useEffect(() => {
+    refreshTournamentsAndJoined();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const showJoinConfirmation = (idStr, rawDate) => {
+    const tItem = tournaments.find((x) => String(x.__id ?? x.id) === idStr);
+    if (!tItem) return;
+
+    if (tItem.is_locked) {
+      setCardMessage((s) => ({
+        ...s,
+        [idStr]: "❌ This tournament is locked by admin. You can no longer join.",
+      }));
+      return;
+    }
     if (joinedIds.includes(idStr) || isJoinClosed(rawDate, nowMs)) return;
+
     setConfirmJoinId(idStr);
     setCardMessage((s) => ({ ...s, [idStr]: "" }));
   };
 
-  const confirmJoinYes = async (idStr, rawDate, entryFee) => {
+  const confirmJoinYes = async (idStr, rawDate) => {
     setConfirmJoinId(null);
     setLoadingJoin((s) => ({ ...s, [idStr]: true }));
 
     const token = localStorage.getItem("token");
     if (!token) {
-      setCardMessage((s) => ({
-        ...s,
-        [idStr]: "❌ Please log in to join.",
-      }));
+      setCardMessage((s) => ({ ...s, [idStr]: "❌ Please log in to join." }));
       setLoadingJoin((s) => ({ ...s, [idStr]: false }));
       return;
     }
@@ -339,24 +420,33 @@ export default function Tournaments() {
         { headers: { Authorization: `Bearer ${token}` } }
       );
 
-      setJoinedIds((s) =>
-        s.includes(idStr) ? s : [...s, idStr]
-      );
+      if (res.data?.message === "Tournament is locked") {
+        setCardMessage((s) => ({
+          ...s,
+          [idStr]:
+            "❌ This tournament is locked by admin. You can no longer join.",
+        }));
+        setLoadingJoin((s) => ({ ...s, [idStr]: false }));
+        return;
+      }
 
-      // update joined_count / slots locally if backend sends them
+      setJoinedIds((s) => (s.includes(idStr) ? s : [...s, idStr]));
+
       const { joined_count, slots } = res.data || {};
       setTournaments((prev) =>
         prev.map((t) =>
           String(t.__id ?? t.id) === String(idStr)
             ? {
                 ...t,
-                joined_count:
-                  joined_count ?? Number(t.joined_count || 0) + 1,
+                joined_count: joined_count ?? Number(t.joined_count || 0) + 1,
                 slots: slots ?? t.slots,
               }
             : t
         )
       );
+
+      // ✅ refresh list once so duo/squad/seat counters stay correct too
+      await refreshTournamentsAndJoined();
 
       setCardMessage((s) => ({
         ...s,
@@ -376,9 +466,12 @@ export default function Tournaments() {
           [idStr]: "ℹ️ You have already joined this tournament.",
         }));
       } else if (msg === "Match is full") {
+        setCardMessage((s) => ({ ...s, [idStr]: "❌ Match is already full." }));
+      } else if (msg === "Tournament is locked") {
         setCardMessage((s) => ({
           ...s,
-          [idStr]: "❌ Match is already full.",
+          [idStr]:
+            "❌ This tournament is locked by admin. You can no longer join.",
         }));
       } else {
         setCardMessage((s) => ({
@@ -394,9 +487,7 @@ export default function Tournaments() {
   const confirmJoinNo = (idStr) => {
     setConfirmJoinId(null);
     setCardMessage((s) => ({ ...s, [idStr]: "ℹ️ Join cancelled." }));
-    setTimeout(() => {
-      setCardMessage((s) => ({ ...s, [idStr]: "" }));
-    }, 2000);
+    setTimeout(() => setCardMessage((s) => ({ ...s, [idStr]: "" })), 2000);
   };
 
   const fetchDetails = async (idStr) => {
@@ -416,8 +507,7 @@ export default function Tournaments() {
         [idStr]: { loading: false, data: res.data },
       }));
     } catch (err) {
-      const msg =
-        err.response?.data?.message || "Failed to load details";
+      const msg = err.response?.data?.message || "Failed to load details";
       setDetailsById((s) => ({
         ...s,
         [idStr]: { loading: false, error: msg },
@@ -445,12 +535,35 @@ export default function Tournaments() {
         [idStr]: { loading: false, data: res.data.participants || [] },
       }));
     } catch (err) {
-      const msg =
-        err.response?.data?.message || "Failed to load participants";
+      const msg = err.response?.data?.message || "Failed to load participants";
       setParticipantsById((s) => ({
         ...s,
         [idStr]: { loading: false, error: msg },
       }));
+    }
+  };
+
+  const fetchTeamTable = async (idStr) => {
+    const token = localStorage.getItem("token");
+    if (!token) {
+      setTeamError((s) => ({ ...s, [idStr]: "Please log in first" }));
+      return;
+    }
+
+    setTeamLoading((s) => ({ ...s, [idStr]: true }));
+    setTeamError((s) => ({ ...s, [idStr]: "" }));
+
+    try {
+      const res = await axios.get(
+        `http://localhost:5000/api/tournaments/${idStr}/teams`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      setTeamDataByTournament((s) => ({ ...s, [idStr]: res.data }));
+    } catch (err) {
+      const msg = err.response?.data?.message || "Failed to load team table";
+      setTeamError((s) => ({ ...s, [idStr]: msg }));
+    } finally {
+      setTeamLoading((s) => ({ ...s, [idStr]: false }));
     }
   };
 
@@ -471,7 +584,7 @@ export default function Tournaments() {
     fetchDetails(idStr);
   };
 
-  const togglePlayers = (idStr) => {
+  const togglePlayers = (idStr, modeRaw) => {
     setOpenDetailsId(null);
     setOpenDescriptionId(null);
     if (openPlayersId === idStr) {
@@ -479,7 +592,10 @@ export default function Tournaments() {
       return;
     }
     setOpenPlayersId(idStr);
-    fetchParticipants(idStr);
+
+    const lowerMode = (modeRaw || "").toLowerCase();
+    if (lowerMode === "duo" || lowerMode === "squad") fetchTeamTable(idStr);
+    else fetchParticipants(idStr);
   };
 
   const copyText = async (text) => {
@@ -487,6 +603,53 @@ export default function Tournaments() {
       await navigator.clipboard.writeText(String(text));
     } catch (err) {
       console.error("copy failed", err);
+    }
+  };
+
+  // ✅ UPDATED: also refresh tournaments list after selecting slot
+  const handleSelectSlot = async (tournamentIdStr, groupNo, slotNo) => {
+    const token = localStorage.getItem("token");
+    if (!token) {
+      setTeamError((s) => ({ ...s, [tournamentIdStr]: "Please log in first" }));
+      return;
+    }
+
+    try {
+      await axios.post(
+        `http://localhost:5000/api/tournaments/${tournamentIdStr}/teams/${groupNo}/slot/${slotNo}`,
+        {},
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      await fetchTeamTable(tournamentIdStr);
+
+      // ✅ this makes Seats update on the cards without clicking Players
+      await refreshTournamentsAndJoined();
+    } catch (err) {
+      const msg = err.response?.data?.message || "Failed to select slot";
+      setTeamError((s) => ({ ...s, [tournamentIdStr]: msg }));
+    }
+  };
+
+  const handleTeamNameBlur = async (tournamentIdStr, groupNo, newName, original) => {
+    if (newName === original) return;
+    const token = localStorage.getItem("token");
+    if (!token) {
+      setTeamError((s) => ({ ...s, [tournamentIdStr]: "Please log in first" }));
+      return;
+    }
+
+    try {
+      await axios.put(
+        `http://localhost:5000/api/tournaments/${tournamentIdStr}/teams/${groupNo}/name`,
+        { team_name: newName },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      await fetchTeamTable(tournamentIdStr);
+      await refreshTournamentsAndJoined(); // keep list fresh
+    } catch (err) {
+      const msg = err.response?.data?.message || "Failed to update team name";
+      setTeamError((s) => ({ ...s, [tournamentIdStr]: msg }));
     }
   };
 
@@ -498,11 +661,12 @@ export default function Tournaments() {
     backgroundRepeat: "no-repeat",
   };
 
-  const visibleTournaments = tournaments.filter(
-    (t) =>
-      !isTournamentExpired(t.date, nowMs) &&
-      (t.mode === "BR_SINGLE" || !t.mode)
-  );
+  const visibleTournaments = tournaments.filter((t) => {
+    if (isTournamentExpired(t.date, nowMs)) return false;
+    if (!t.mode) return true;
+    const m = String(t.mode).toLowerCase();
+    return ["solo", "duo", "squad", "br_single"].includes(m);
+  });
 
   return (
     <div style={pageStyle}>
@@ -515,7 +679,7 @@ export default function Tournaments() {
             </h1>
           </div>
           <div style={{ color: "rgba(230,238,248,0.85)" }}>
-            Join upcoming matches and check room details.
+            Join upcoming matches and manage your team.
           </div>
         </div>
 
@@ -543,6 +707,7 @@ export default function Tournaments() {
             const matchLabel = formatMatchLabel(t.date);
             const joinClosed = isJoinClosed(t.date, nowMs);
             const isConfirming = confirmJoinId === idStr;
+
             const vsLine =
               t.team_a_name && t.team_b_name
                 ? `${t.team_a_name} vs ${t.team_b_name}`
@@ -553,23 +718,47 @@ export default function Tournaments() {
             const isFull = slots > 0 && joinedCount >= slots;
 
             let imageCandidate = thumbDefault;
-            if (t.image && String(t.image).startsWith("http")) {
-              imageCandidate = t.image;
-            } else if (t.image) {
-              imageCandidate = t.image;
-            }
+            if (t.image && String(t.image).startsWith("http")) imageCandidate = t.image;
+            else if (t.image) imageCandidate = t.image;
+
+            const modeRaw = (t.mode || "").toLowerCase();
+            const modeLabel =
+              modeRaw === "duo" ? "Duo" : modeRaw === "squad" ? "Squad" : "Solo";
+
+            const isLocked = !!t.is_locked;
+
+            const teamData = teamDataByTournament[idStr];
+            const isTeamMode = modeRaw === "duo" || modeRaw === "squad";
+
+            // ✅ Seats counters: prefer list fields (t.*), fallback to teamData if opened
+            const teamsJoined = Number(t.teams_joined ?? teamData?.teams_joined ?? 0);
+            const totalTeams = Number(
+              t.total_teams ?? teamData?.total_teams ?? (modeRaw === "duo" ? 24 : 12)
+            );
+
+            const playersJoined = Number(t.players_joined ?? teamData?.players_joined ?? 0);
+            const totalPlayers = Number(
+              t.total_players ??
+                teamData?.total_players ??
+                totalTeams * (modeRaw === "duo" ? 2 : 4)
+            );
+
+            const lockedFromTeamApi = !!(teamData?.locked || teamData?.is_locked);
+            const teamsLocked = isTeamMode ? lockedFromTeamApi : false;
+
+            const groupsArr = Array.isArray(teamData?.groups) ? teamData.groups : null;
+            const oldTeamsArr = Array.isArray(teamData?.teams) ? teamData.teams : null;
 
             return (
               <div
                 key={idStr}
                 ref={(el) => (refs.current[idStr] = el)}
-                style={{
-                  ...cardBase,
-                  ...(hoverId === idStr ? cardHover : {}),
-                }}
+                style={{ ...cardBase, ...(hoverId === idStr ? cardHover : {}) }}
                 onMouseEnter={() => setHoverId(idStr)}
                 onMouseLeave={() => setHoverId(null)}
               >
+                {/* ---- FROM HERE YOUR RENDER IS UNCHANGED except seats already uses teamsJoined etc ---- */}
+                {/* ...keep the rest of your JSX exactly same... */}
                 <div>
                   <div style={titleRow}>
                     <img
@@ -581,13 +770,12 @@ export default function Tournaments() {
                           ev.target.src = thumbDefault;
                           return;
                         }
-                        if (ev?.target) {
-                          ev.target.src = "/images/thumb-default.jpg";
-                        }
+                        if (ev?.target) ev.target.src = "/images/thumb-default.jpg";
                       }}
                     />
                     <div>
                       <h3 style={titleStyle}>{t.name}</h3>
+
                       {vsLine && (
                         <div
                           style={{
@@ -599,9 +787,49 @@ export default function Tournaments() {
                           {vsLine}
                         </div>
                       )}
-                      <div style={metaStyle}>
-                        Entry fee: ₹{t.entry_fee} • Status: {t.status}
+
+                      <div
+                        style={{
+                          display: "flex",
+                          flexWrap: "wrap",
+                          gap: 8,
+                          marginTop: 6,
+                          alignItems: "center",
+                        }}
+                      >
+                        <span style={metaStyle}>
+                          Entry fee: ₹{t.entry_fee} • Status: {t.status}
+                        </span>
+
+                        {typeof t.price_pool !== "undefined" && (
+                          <span
+                            style={{
+                              background: "rgba(22,163,74,0.15)",
+                              color: "#bbf7d0",
+                              borderRadius: 999,
+                              padding: "4px 10px",
+                              fontSize: 12,
+                              fontWeight: 600,
+                            }}
+                          >
+                            Prize pool: ₹{t.price_pool}
+                          </span>
+                        )}
+
+                        <span
+                          style={{
+                            background: "rgba(59,130,246,0.2)",
+                            color: "#bfdbfe",
+                            borderRadius: 999,
+                            padding: "4px 10px",
+                            fontSize: 12,
+                            fontWeight: 600,
+                          }}
+                        >
+                          Mode: {modeLabel}
+                        </span>
                       </div>
+
                       <div
                         style={{
                           marginTop: 4,
@@ -611,6 +839,8 @@ export default function Tournaments() {
                       >
                         Match time: {matchLabel}
                       </div>
+
+                      {/* FIXED: Seats line for duo/squad uses team counters */}
                       <div
                         style={{
                           marginTop: 4,
@@ -618,16 +848,39 @@ export default function Tournaments() {
                           color: "rgba(226,232,240,0.9)",
                         }}
                       >
-                        Seats: {joinedCount}/{slots || "—"}
-                        {isFull && " • Full"}
+                        {isTeamMode ? (
+                          <>
+                            Seats: {teamsJoined}/{totalTeams}{" "}
+                            <span style={{ fontSize: 12, opacity: 0.85 }}>
+                              ({playersJoined}/{totalPlayers})
+                            </span>
+                          </>
+                        ) : (
+                          <>
+                            Seats: {joinedCount}/{slots || "—"}
+                            {isFull && " • Full"}
+                          </>
+                        )}
                       </div>
+
+                      {isLocked && (
+                        <div
+                          style={{
+                            marginTop: 6,
+                            fontSize: 12,
+                            color: "#f97373",
+                            fontWeight: 600,
+                          }}
+                        >
+                          This tournament is locked by admin. You can no longer
+                          make changes.
+                        </div>
+                      )}
                     </div>
                   </div>
 
-                  {joinClosed && (
-                    <div style={infoPill}>
-                      Match ID &amp; password in 5 min
-                    </div>
+                  {joinClosed && !isLocked && (
+                    <div style={infoPill}>Match ID &amp; password in 5 min</div>
                   )}
 
                   {cardMessage[idStr] && !isConfirming && (
@@ -687,12 +940,11 @@ export default function Tournaments() {
                         >
                           ℹ️ Entry fee ₹{t.entry_fee} will be deducted
                         </div>
+
                         <button
                           style={btnConfirmYes}
-                          onClick={() =>
-                            confirmJoinYes(idStr, t.date, t.entry_fee)
-                          }
-                          disabled={loadingJoin[idStr] || isFull}
+                          onClick={() => confirmJoinYes(idStr, t.date)}
+                          disabled={loadingJoin[idStr] || isFull || isLocked}
                         >
                           ✅ Yes, Join
                         </button>
@@ -708,20 +960,20 @@ export default function Tournaments() {
                         style={{
                           ...btnPrimary,
                           opacity:
-                            joinClosed || isFull || loadingJoin[idStr]
+                            joinClosed || isFull || loadingJoin[idStr] || isLocked
                               ? 0.5
                               : 1,
                           cursor:
-                            joinClosed || isFull
+                            joinClosed || isFull || isLocked
                               ? "not-allowed"
                               : "pointer",
                         }}
-                        onClick={() =>
-                          showJoinConfirmation(idStr, t.date, t.entry_fee)
-                        }
-                        disabled={loadingJoin[idStr] || joinClosed || isFull}
+                        onClick={() => showJoinConfirmation(idStr, t.date)}
+                        disabled={loadingJoin[idStr] || joinClosed || isFull || isLocked}
                       >
-                        {isFull
+                        {isLocked
+                          ? "Locked"
+                          : isFull
                           ? "Match full"
                           : loadingJoin[idStr]
                           ? "Joining..."
@@ -741,7 +993,7 @@ export default function Tournaments() {
 
                     <button
                       style={btnSecondary}
-                      onClick={() => togglePlayers(idStr)}
+                      onClick={() => togglePlayers(idStr, modeRaw)}
                       disabled={isConfirming}
                     >
                       {isPlayersOpen ? "Hide players" : "Players"}
@@ -762,84 +1014,41 @@ export default function Tournaments() {
                         <div>Loading details…</div>
                       ) : detailsById[idStr]?.data ? (
                         <>
-                          <div
-                            style={{
-                              fontSize: 12,
-                              color: "rgba(230,238,248,0.9)",
-                            }}
-                          >
+                          <div style={{ fontSize: 12, color: "rgba(230,238,248,0.9)" }}>
                             Match time
                           </div>
-                          <div
-                            style={{
-                              fontWeight: 700,
-                              fontSize: 18,
-                              marginBottom: 8,
-                            }}
-                          >
+                          <div style={{ fontWeight: 700, fontSize: 18, marginBottom: 8 }}>
                             {matchLabel}
                           </div>
 
-                          <div
-                            style={{
-                              display: "flex",
-                              gap: 18,
-                              marginBottom: 10,
-                            }}
-                          >
+                          <div style={{ display: "flex", gap: 18, marginBottom: 10 }}>
                             <div>
-                              <div style={{ fontSize: 12, opacity: 0.8 }}>
-                                Room ID
-                              </div>
-                              <div
-                                style={{
-                                  fontWeight: 700,
-                                  fontSize: 16,
-                                }}
-                              >
+                              <div style={{ fontSize: 12, opacity: 0.8 }}>Room ID</div>
+                              <div style={{ fontWeight: 700, fontSize: 16 }}>
                                 {detailsById[idStr].data.room_id}
                               </div>
                             </div>
 
                             <div>
-                              <div style={{ fontSize: 12, opacity: 0.8 }}>
-                                Password
-                              </div>
-                              <div
-                                style={{
-                                  fontWeight: 700,
-                                  fontSize: 16,
-                                }}
-                              >
+                              <div style={{ fontSize: 12, opacity: 0.8 }}>Password</div>
+                              <div style={{ fontWeight: 700, fontSize: 16 }}>
                                 {detailsById[idStr].data.room_password}
                               </div>
                             </div>
                           </div>
 
-                          <div
-                            style={{
-                              display: "flex",
-                              gap: 8,
-                              alignItems: "center",
-                            }}
-                          >
+                          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                             <button
                               style={smallCopyBtn}
                               type="button"
-                              onClick={() =>
-                                copyText(detailsById[idStr].data.room_id)
-                              }
+                              onClick={() => copyText(detailsById[idStr].data.room_id)}
                             >
                               Copy ID
                             </button>
                             <button
                               style={smallCopyBtn}
                               type="button"
-                              onClick={() =>
-                                copyText(
-                                  detailsById[idStr].data.room_password
-                                )
-                              }
+                              onClick={() => copyText(detailsById[idStr].data.room_password)}
                             >
                               Copy password
                             </button>
@@ -857,14 +1066,8 @@ export default function Tournaments() {
                           </div>
                         </>
                       ) : (
-                        <div
-                          style={{
-                            color: "rgba(230,238,248,0.85)",
-                            marginBottom: 4,
-                          }}
-                        >
-                          {detailsById[idStr]?.error ||
-                            "Room not configured yet"}
+                        <div style={{ color: "rgba(230,238,248,0.85)", marginBottom: 4 }}>
+                          {detailsById[idStr]?.error || "Room not configured yet"}
                         </div>
                       )}
                     </div>
@@ -894,12 +1097,7 @@ export default function Tournaments() {
                           {t.description}
                         </div>
                       ) : (
-                        <div
-                          style={{
-                            fontSize: 14,
-                            color: "rgba(230,238,248,0.7)",
-                          }}
-                        >
+                        <div style={{ fontSize: 14, color: "rgba(230,238,248,0.7)" }}>
                           No description available for this tournament.
                         </div>
                       )}
@@ -908,98 +1106,436 @@ export default function Tournaments() {
 
                   {isPlayersOpen && (
                     <div style={participantsPanel}>
-                      <div
-                        style={{
-                          fontSize: 12,
-                          fontWeight: 700,
-                          marginBottom: 4,
-                        }}
-                      >
-                        PARTICIPANTS
+                      <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 4 }}>
+                        {isTeamMode ? "TEAMS & SLOTS" : "PARTICIPANTS"}
                       </div>
-                      <div
-                        style={{
-                          fontSize: 12,
-                          color: "rgba(209,213,219,0.9)",
-                          marginBottom: 8,
-                        }}
-                      >
-                        Joined players for this tournament
+                      <div style={{ fontSize: 12, color: "rgba(209,213,219,0.9)", marginBottom: 8 }}>
+                        {isTeamMode
+                          ? "Select your group and slot after joining."
+                          : "Joined players for this tournament"}
                       </div>
-                      <div style={participantsInner}>
-                        {participantsById[idStr]?.loading ? (
-                          <div style={{ fontSize: 13 }}>
-                            Loading participants…
-                          </div>
-                        ) : participantsById[idStr]?.data &&
-                          participantsById[idStr].data.length > 0 ? (
-                          participantsById[idStr].data.map((p, idx) => (
-                            <div key={p.id || idx} style={participantRow}>
-                              <div style={participantLeft}>
-                                <span
-                                  style={{
-                                    fontWeight: 600,
-                                    fontSize: 13,
-                                    textTransform: "capitalize",
-                                  }}
-                                >
-                                  {p.name || "Unknown"}
-                                </span>
-                                <span
-                                  style={{
-                                    fontSize: 12,
-                                    color: "rgba(209,213,219,0.95)",
-                                  }}
-                                >
-                                  Freefire ID:{" "}
-                                  {p.freefireId ? p.freefireId : "—"}
-                                </span>
-                              </div>
-                              <div
-                                style={{
-                                  display: "flex",
-                                  flexDirection: "column",
-                                  alignItems: "flex-end",
-                                  gap: 4,
-                                }}
-                              >
-                                <span
-                                  style={{
-                                    fontSize: 11,
-                                    color: "rgba(209,213,219,0.8)",
-                                  }}
-                                >
-                                  #{idx + 1}
-                                </span>
-                                {p.freefireId && (
-                                  <button
-                                    type="button"
-                                    style={smallCopyBtn}
-                                    onClick={() => copyText(p.freefireId)}
-                                  >
-                                    Copy ID
-                                  </button>
-                                )}
-                              </div>
+
+                      {isTeamMode ? (
+                        <div style={teamTableWrapper}>
+                          {teamLoading[idStr] ? (
+                            <div style={{ fontSize: 13 }}>Loading team table…</div>
+                          ) : teamError[idStr] ? (
+                            <div style={{ fontSize: 13, color: "#fecaca" }}>
+                              {teamError[idStr]}
                             </div>
-                          ))
-                        ) : (
-                          <div
-                            style={{
-                              fontSize: 13,
-                              color: "rgba(209,213,219,0.9)",
-                              padding: "4px 2px",
-                            }}
-                          >
-                            No players have joined yet.
+                          ) : teamData ? (
+                            <>
+                              {teamsLocked && (
+                                <div
+                                  style={{
+                                    marginBottom: 8,
+                                    fontSize: 12,
+                                    color: "#fca5a5",
+                                    fontWeight: 600,
+                                  }}
+                                >
+                                  Tournament is locked. Team changes are disabled.
+                                </div>
+                              )}
+
+                              <div style={teamTableHeaderRow}>
+                                <span style={{ fontSize: 12, color: "rgba(209,213,219,0.8)" }}>
+                                  Mode: {modeLabel} • Groups:{" "}
+                                  {Array.isArray(groupsArr)
+                                    ? groupsArr.length
+                                    : oldTeamsArr?.length || 0}
+                                </span>
+                              </div>
+
+                              <div style={teamGrid}>
+                                {/* NEW GROUPS FORMAT */}
+                                {Array.isArray(groupsArr)
+                                  ? groupsArr.map((g) => {
+                                      const slotsInGroup = modeRaw === "duo" ? 2 : 4;
+                                      const players = Array.isArray(g.players)
+                                        ? g.players
+                                        : [];
+
+                                      // team name editable only when backend says leader_user_id == logged user id
+                                      // If you don't store user id, keep it simple: allow only if g.leader_user_id is truthy AND user_has_team is true and group has your user_id in players.
+                                      // For now: keep same UX as before using lock only (leader check depends on your auth storage).
+                                      const canEditName = !teamsLocked && !!g.leader_user_id;
+
+                                      return (
+                                        <div key={g.group_no} style={groupCard}>
+                                          <div style={groupTitleRow}>
+                                            <div
+                                              style={{
+                                                fontSize: 12,
+                                                fontWeight: 600,
+                                                color: "rgba(209,213,219,0.9)",
+                                              }}
+                                            >
+                                              Group {g.group_no}
+                                            </div>
+
+                                            <div
+                                              style={{
+                                                display: "flex",
+                                                alignItems: "center",
+                                                gap: 6,
+                                              }}
+                                            >
+                                              <span
+                                                style={{
+                                                  fontSize: 11,
+                                                  color: "rgba(148,163,184,0.9)",
+                                                }}
+                                              >
+                                                Team Name:
+                                              </span>
+                                              <input
+                                                style={teamNameInput}
+                                                type="text"
+                                                defaultValue={g.team_name || ""}
+                                                placeholder="Enter team name"
+                                                disabled={!canEditName}
+                                                onBlur={(e) =>
+                                                  handleTeamNameBlur(
+                                                    idStr,
+                                                    g.group_no,
+                                                    e.target.value,
+                                                    g.team_name || ""
+                                                  )
+                                                }
+                                              />
+                                            </div>
+                                          </div>
+
+                                          <div
+                                            style={{
+                                              ...groupSlotsRow,
+                                              gridTemplateColumns:
+                                                modeRaw === "duo"
+                                                  ? "repeat(2, minmax(0,1fr))"
+                                                  : "repeat(2, minmax(0,1fr))",
+                                            }}
+                                          >
+                                            {Array.from(
+                                              { length: slotsInGroup },
+                                              (_, i) => i + 1
+                                            ).map((slotNo) => {
+                                              const p = players[slotNo - 1]; // expected index aligned
+                                              const occupied = !!(p && p.username);
+
+                                              const canSelect =
+                                                !occupied &&
+                                                !teamsLocked &&
+                                                !teamData.user_has_team;
+
+                                              return (
+                                                <div key={slotNo} style={slotBox}>
+                                                  <div>
+                                                    {occupied ? (
+                                                      <div style={slotFilled}>
+                                                        <div style={{ fontWeight: 600, fontSize: 12 }}>
+                                                          {p.username}
+                                                        </div>
+                                                        <div style={{ fontSize: 11, color: "rgba(148,163,184,0.9)" }}>
+                                                          ID: {p.player_game_id || "—"}
+                                                        </div>
+                                                      </div>
+                                                    ) : (
+                                                      <span style={slotEmpty}>Empty slot</span>
+                                                    )}
+                                                  </div>
+
+                                                  <div
+                                                    style={{
+                                                      display: "flex",
+                                                      flexDirection: "column",
+                                                      alignItems: "flex-end",
+                                                      gap: 4,
+                                                    }}
+                                                  >
+                                                    <span style={{ fontSize: 10, color: "rgba(148,163,184,0.9)" }}>
+                                                      Slot {slotNo}
+                                                    </span>
+
+                                                    {occupied ? (
+                                                      p.player_game_id ? (
+                                                        <button
+                                                          style={smallCopyBtn}
+                                                          type="button"
+                                                          onClick={() => copyText(p.player_game_id)}
+                                                        >
+                                                          Copy ID
+                                                        </button>
+                                                      ) : null
+                                                    ) : canSelect ? (
+                                                      <button
+                                                        style={slotSelectBtn}
+                                                        type="button"
+                                                        onClick={() => handleSelectSlot(idStr, g.group_no, slotNo)}
+                                                      >
+                                                        Select
+                                                      </button>
+                                                    ) : null}
+                                                  </div>
+                                                </div>
+                                              );
+                                            })}
+                                          </div>
+                                        </div>
+                                      );
+                                    })
+                                  : null}
+
+                                {/* OLD TEAMS FORMAT (fallback) */}
+                                {!Array.isArray(groupsArr) &&
+                                  Array.isArray(oldTeamsArr) &&
+                                  oldTeamsArr.map((team) => {
+                                    const slotsInGroup = modeRaw === "duo" ? 2 : 4;
+                                    const sortedMembers = (team.members || []).sort(
+                                      (a, b) => Number(a.slot_no) - Number(b.slot_no)
+                                    );
+                                    const memberBySlot = {};
+                                    sortedMembers.forEach((m) => {
+                                      memberBySlot[m.slot_no] = m;
+                                    });
+
+                                    return (
+                                      <div key={team.id} style={groupCard}>
+                                        <div style={groupTitleRow}>
+                                          <div
+                                            style={{
+                                              fontSize: 12,
+                                              fontWeight: 600,
+                                              color: "rgba(209,213,219,0.9)",
+                                            }}
+                                          >
+                                            Group {team.group_no}
+                                          </div>
+                                          <div
+                                            style={{
+                                              display: "flex",
+                                              alignItems: "center",
+                                              gap: 6,
+                                            }}
+                                          >
+                                            <span style={{ fontSize: 11, color: "rgba(148,163,184,0.9)" }}>
+                                              Team Name:
+                                            </span>
+                                            <input
+                                              style={teamNameInput}
+                                              type="text"
+                                              defaultValue={team.team_name || ""}
+                                              placeholder="Enter team name"
+                                              disabled={!team.is_leader || teamsLocked}
+                                              onBlur={(e) =>
+                                                handleTeamNameBlur(
+                                                  idStr,
+                                                  team.group_no,
+                                                  e.target.value,
+                                                  team.team_name || ""
+                                                )
+                                              }
+                                            />
+                                          </div>
+                                        </div>
+
+                                        <div
+                                          style={{
+                                            ...groupSlotsRow,
+                                            gridTemplateColumns:
+                                              modeRaw === "duo"
+                                                ? "repeat(2, minmax(0,1fr))"
+                                                : "repeat(2, minmax(0,1fr))",
+                                          }}
+                                        >
+                                          {Array.from({ length: slotsInGroup }, (_, i) => i + 1).map(
+                                            (slotNo) => {
+                                              const m = memberBySlot[slotNo];
+                                              const canSelect =
+                                                !m &&
+                                                !teamsLocked &&
+                                                !team.has_me &&
+                                                !teamData.user_has_team;
+
+                                              return (
+                                                <div key={slotNo} style={slotBox}>
+                                                  <div>
+                                                    {m ? (
+                                                      <div style={slotFilled}>
+                                                        <div style={{ fontWeight: 600, fontSize: 12 }}>
+                                                       {m.username}
+                                                        </div>
+                                                        <div
+                                                          style={{
+                                                            fontSize: 11,
+                                                            color:
+                                                              "rgba(148,163,184,0.9)",
+                                                          }}
+                                                        >
+                                                          ID: {m.player_game_id || "—"}
+                                                        </div>
+                                                      </div>
+                                                    ) : (
+                                                      <span style={slotEmpty}>
+                                                        Empty slot
+                                                      </span>
+                                                    )}
+                                                  </div>
+
+                                                  <div
+                                                    style={{
+                                                      display: "flex",
+                                                      flexDirection: "column",
+                                                      alignItems: "flex-end",
+                                                      gap: 4,
+                                                    }}
+                                                  >
+                                                    <span
+                                                      style={{
+                                                        fontSize: 10,
+                                                        color:
+                                                          "rgba(148,163,184,0.9)",
+                                                      }}
+                                                    >
+                                                      Slot {slotNo}
+                                                    </span>
+
+                                                    {m ? (
+                                                      m.player_game_id ? (
+                                                        <button
+                                                          style={smallCopyBtn}
+                                                          type="button"
+                                                          onClick={() =>
+                                                            copyText(
+                                                              m.player_game_id
+                                                            )
+                                                          }
+                                                        >
+                                                          Copy ID
+                                                        </button>
+                                                      ) : null
+                                                    ) : canSelect ? (
+                                                      <button
+                                                        style={slotSelectBtn}
+                                                        type="button"
+                                                        onClick={() =>
+                                                          handleSelectSlot(
+                                                            idStr,
+                                                            team.group_no,
+                                                            slotNo
+                                                          )
+                                                        }
+                                                      >
+                                                        Select
+                                                      </button>
+                                                    ) : null}
+                                                  </div>
+                                                </div>
+                                              );
+                                            }
+                                          )}
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                              </div>
+                            </>
+                          ) : (
+                            <div
+                              style={{
+                                fontSize: 13,
+                                color: "rgba(209,213,219,0.9)",
+                              }}
+                            >
+                              No team data.
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <div style={participantsInner}>
+                          {participantsById[idStr]?.loading ? (
+                            <div style={{ fontSize: 13 }}>
+                              Loading participants…
+                            </div>
+                          ) : participantsById[idStr]?.data &&
+                            participantsById[idStr].data.length > 0 ? (
+                            participantsById[idStr].data.map((p, idx) => (
+                              <div
+                                key={p.id || idx}
+                                style={participantRow}
+                              >
+                                <div style={participantLeft}>
+                                  <span
+                                    style={{
+                                      fontWeight: 600,
+                                      fontSize: 13,
+                                      textTransform: "capitalize",
+                                    }}
+                                  >
+                                    {p.name || "Unknown"}
+                                  </span>
+                                  <span
+                                    style={{
+                                      fontSize: 12,
+                                      color:
+                                        "rgba(209,213,219,0.95)",
+                                    }}
+                                  >
+                                    Freefire ID:{" "}
+                                    {p.freefireId ? p.freefireId : "—"}
+                                  </span>
+                                </div>
+                                <div
+                                  style={{
+                                    display: "flex",
+                                    flexDirection: "column",
+                                    alignItems: "flex-end",
+                                    gap: 4,
+                                  }}
+                                >
+                                  <span
+                                    style={{
+                                      fontSize: 11,
+                                      color:
+                                        "rgba(209,213,219,0.8)",
+                                    }}
+                                  >
+                                    #{idx + 1}
+                                  </span>
+                                  {p.freefireId && (
+                                    <button
+                                      type="button"
+                                      style={smallCopyBtn}
+                                      onClick={() =>
+                                        copyText(p.freefireId)
+                                      }
+                                    >
+                                      Copy ID
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                            ))
+                          ) : (
+                            <div
+                              style={{
+                                fontSize: 13,
+                                color:
+                                  "rgba(209,213,219,0.9)",
+                                padding: "4px 2px",
+                              }}
+                            >
+                              No players have joined yet.
+                            </div>
+                          )}
+
+                          <div style={badgeCount}>
+                            {participantsById[idStr]?.data
+                              ? `${participantsById[idStr].data.length} players`
+                              : "0 players"}
                           </div>
-                        )}
-                      </div>
-                      <div style={badgeCount}>
-                        {participantsById[idStr]?.data
-                          ? `${participantsById[idStr].data.length} players`
-                          : "0 players"}
-                      </div>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>

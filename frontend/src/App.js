@@ -30,53 +30,101 @@ import AdminTournamentsB2B from "./pages/admin/AdminTournamentsB2B";
 import AdminTournamentsCSAdmin from "./pages/admin/AdminTournamentsCS";
 import AdminWalletTopups from "./pages/admin/AdminWalletTopups";
 
+import AdminScores from "./pages/admin/AdminScores";
+import AdminLeaderboard from "./pages/admin/AdminLeaderboard";
+import AdminSupportInbox from "./pages/admin/AdminSupportInbox";
+
 import AddBalance from "./pages/AddBalance";
-import HelpCenter from "./pages/HelpCenter"; // ⬅️ new import
+import HelpCenter from "./pages/HelpCenter";
+
+// ✅ NEW
+import SuperAdmin from "./pages/SuperAdmin";
 
 const adminEmails = ["vivektatharkar@gmail.com"];
+const superAdminEmails = ["vivektatharkar@gmail.com"];
+
+// ---------- helpers ----------
+function safeLower(v) {
+  return (v ?? "").toString().trim().toLowerCase();
+}
 
 function getStoredUser() {
   try {
     const raw = localStorage.getItem("user");
     if (!raw) return null;
-    return JSON.parse(raw);
+
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object") return null;
+
+    return parsed;
   } catch (e) {
     console.error("parse user error", e);
     return null;
   }
 }
 
+function getToken() {
+  const token = localStorage.getItem("token");
+  return token && token.toString().trim().length > 0 ? token : null;
+}
+
 function isAdminUser(user) {
   if (!user) return false;
-  const role = (user.role || "").toString().toLowerCase();
-  const email = (user.email || "").toString().toLowerCase();
+
+  const role = safeLower(user.role);
+  const email = safeLower(user.email);
 
   if (role === "admin") return true;
-  if (adminEmails.includes(email)) return true;
+  if (adminEmails.map(safeLower).includes(email)) return true;
 
   return false;
 }
 
+function isSuperAdminUser(user) {
+  if (!user) return false;
+  const email = safeLower(user.email);
+  return superAdminEmails.map(safeLower).includes(email);
+}
+
+// ---------- route guards ----------
 function ProtectedRoute({ children }) {
-  const token = localStorage.getItem("token");
+  const token = getToken();
   const user = getStoredUser();
 
   if (!token || !user) {
     return <Navigate to="/login" replace />;
   }
+
   return children;
 }
 
 function AdminRoute({ children }) {
-  const token = localStorage.getItem("token");
+  const token = getToken();
   const user = getStoredUser();
 
   if (!token || !user) {
     return <Navigate to="/login" replace />;
   }
+
   if (!isAdminUser(user)) {
     return <Navigate to="/home" replace />;
   }
+
+  return children;
+}
+
+function SuperAdminRoute({ children }) {
+  const token = getToken();
+  const user = getStoredUser();
+
+  if (!token || !user) {
+    return <Navigate to="/login" replace />;
+  }
+
+  if (!isSuperAdminUser(user)) {
+    return <Navigate to="/admin" replace />;
+  }
+
   return children;
 }
 
@@ -171,7 +219,6 @@ export default function App() {
             }
           />
 
-          {/* wallet: add balance */}
           <Route
             path="/add-balance"
             element={
@@ -181,7 +228,6 @@ export default function App() {
             }
           />
 
-          {/* help center */}
           <Route
             path="/help-center"
             element={
@@ -201,7 +247,43 @@ export default function App() {
             }
           />
 
-          {/* admin tournaments */}
+          {/* ✅ SuperAdmin (only your email) */}
+          <Route
+            path="/superadmin"
+            element={
+              <SuperAdminRoute>
+                <SuperAdmin />
+              </SuperAdminRoute>
+            }
+          />
+
+          <Route
+            path="/admin/leaderboard"
+            element={
+              <AdminRoute>
+                <AdminLeaderboard />
+              </AdminRoute>
+            }
+          />
+
+          <Route
+            path="/admin/support"
+            element={
+              <AdminRoute>
+                <AdminSupportInbox />
+              </AdminRoute>
+            }
+          />
+
+          <Route
+            path="/admin/scores"
+            element={
+              <AdminRoute>
+                <AdminScores />
+              </AdminRoute>
+            }
+          />
+
           <Route
             path="/admin/tournaments/headshot"
             element={
@@ -238,7 +320,6 @@ export default function App() {
             }
           />
 
-          {/* admin wallet top-ups */}
           <Route
             path="/admin/wallet-topups"
             element={
@@ -248,7 +329,6 @@ export default function App() {
             }
           />
 
-          {/* admin withdrawals */}
           <Route
             path="/admin/withdrawals"
             element={

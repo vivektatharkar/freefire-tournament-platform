@@ -1,10 +1,5 @@
 // frontend/src/pages/admin/AdminTournamentsHeadshot.jsx
-import React, {
-  useEffect,
-  useState,
-  useContext,
-  useCallback,
-} from "react";
+import React, { useEffect, useState, useContext, useCallback } from "react";
 import axios from "axios";
 import { AuthContext } from "../../context/AuthContext";
 
@@ -105,6 +100,12 @@ const btnGhost = {
   cursor: "pointer",
 };
 
+const btnDanger = {
+  ...btnGhost,
+  border: "1px solid rgba(248,113,113,0.9)",
+  color: "#fecaca",
+};
+
 const smallText = { fontSize: 11, opacity: 0.85 };
 
 const tagBase = {
@@ -134,6 +135,12 @@ const td = {
 
 const actionBtn = { ...btnGhost, padding: "4px 10px", fontSize: 11 };
 
+function normalizeMode(mode) {
+  const m = String(mode || "").trim().toLowerCase();
+  if (m === "solo" || m === "duo" || m === "squad") return m;
+  return "solo";
+}
+
 export default function AdminTournamentsHeadshot() {
   const { user, token } = useContext(AuthContext) || {};
   const [items, setItems] = useState([]);
@@ -144,11 +151,11 @@ export default function AdminTournamentsHeadshot() {
   const [editingId, setEditingId] = useState(null);
   const [form, setForm] = useState({
     name: "",
+    mode: "solo", // FIX: controlled mode
     entry_fee: "",
     prize_pool: "",
     date: "",
     max_players: "",
-    map: "",
     description: "",
     status: "upcoming",
   });
@@ -180,7 +187,7 @@ export default function AdminTournamentsHeadshot() {
     }
   };
 
-  const loadTournaments = useCallback(async () => {
+  const loadMatches = useCallback(async () => {
     try {
       setLoading(true);
       setError("");
@@ -189,9 +196,7 @@ export default function AdminTournamentsHeadshot() {
       });
       setItems(Array.isArray(res.data) ? res.data : []);
     } catch (e) {
-      setError(
-        e.response?.data?.message || "Failed to load Headshot tournaments."
-      );
+      setError(e.response?.data?.message || "Failed to load headshot matches.");
     } finally {
       setLoading(false);
     }
@@ -203,47 +208,41 @@ export default function AdminTournamentsHeadshot() {
       setError("Admin token missing. Please login again.");
       return;
     }
-    loadTournaments();
-  }, [token, loadTournaments]);
+    loadMatches();
+  }, [token, loadMatches]);
 
   const startCreate = () => {
     setEditingId(null);
     setForm({
       name: "",
+      mode: "solo",
       entry_fee: "",
       prize_pool: "",
       date: "",
       max_players: "",
-      map: "",
       description: "",
       status: "upcoming",
     });
   };
 
   const startEdit = (t) => {
-    // normalize DB date -> datetime-local string
     let dateValue = "";
-    if (t.date) {
-      if (typeof t.date === "string") {
-        if (t.date.includes("T")) {
-          // already 2025-12-21T13:00:00
-          dateValue = t.date.slice(0, 16);
-        } else if (t.date.includes(" ")) {
-          // 2025-12-21 13:00:00
-          const [d, time] = t.date.split(" ");
-          dateValue = `${d}T${time.slice(0, 5)}`;
-        }
+    if (t.date && typeof t.date === "string") {
+      if (t.date.includes("T")) dateValue = t.date.slice(0, 16);
+      else if (t.date.includes(" ")) {
+        const [d, time] = t.date.split(" ");
+        dateValue = `${d}T${time.slice(0, 5)}`;
       }
     }
 
     setEditingId(t.id);
     setForm({
       name: t.name || "",
+      mode: normalizeMode(t.mode), // FIX
       entry_fee: t.entry_fee || "",
       prize_pool: t.prize_pool || "",
       date: dateValue,
       max_players: t.slots || "",
-      map: t.map || "",
       description: t.description || "",
       status: t.status || "upcoming",
     });
@@ -254,17 +253,17 @@ export default function AdminTournamentsHeadshot() {
     setForm((s) => ({ ...s, [name]: value }));
   };
 
+  // ALWAYS create a new headshot match on save
   const handleSave = async (e) => {
     e.preventDefault();
 
     const payload = {
       name: form.name,
+      mode: form.mode, // FIX: backend expects mode
       entry_fee: Number(form.entry_fee) || 0,
       prize_pool: Number(form.prize_pool) || 0,
-      // IMPORTANT: send raw datetime-local string, no Date() conversion
       date: form.date,
       slots: Number(form.max_players) || 0,
-      map: form.map,
       description: form.description,
       status: form.status,
     };
@@ -272,21 +271,16 @@ export default function AdminTournamentsHeadshot() {
     try {
       setSaving(true);
       setError("");
-      if (editingId) {
-        await axios.put(
-          `http://localhost:5000/api/admin/headshot/${editingId}`,
-          payload,
-          { headers: authHeaders() }
-        );
-      } else {
-        await axios.post("http://localhost:5000/api/admin/headshot", payload, {
-          headers: authHeaders(),
-        });
-      }
-      await loadTournaments();
-      if (!editingId) startCreate();
+
+      await axios.post("http://localhost:5000/api/admin/headshot", payload, {
+        headers: authHeaders(),
+      });
+
+      setEditingId(null);
+      startCreate();
+      await loadMatches();
     } catch (e2) {
-      setError(e2.response?.data?.message || "Failed to save tournament.");
+      setError(e2.response?.data?.message || "Failed to save headshot match.");
     } finally {
       setSaving(false);
     }
@@ -305,6 +299,26 @@ export default function AdminTournamentsHeadshot() {
       );
     } catch (e) {
       setError(e.response?.data?.message || "Failed to change status.");
+    }
+  };
+
+  const deleteMatch = async (t) => {
+    const ok = window.confirm(
+      `Delete headshot match #${t.id}?
+
+This will remove the match and its joined players (participations).`
+    );
+    if (!ok) return;
+
+    try {
+      setError("");
+      await axios.delete(`http://localhost:5000/api/admin/headshot/${t.id}`, {
+        headers: authHeaders(),
+      });
+      setItems((prev) => prev.filter((x) => x.id !== t.id));
+      if (playersModalId === t.id) setPlayersModalId(null);
+    } catch (e) {
+      setError(e.response?.data?.message || "Failed to delete headshot match.");
     }
   };
 
@@ -357,15 +371,10 @@ export default function AdminTournamentsHeadshot() {
     }
   };
 
-  // format date for display without timezone shift
   const renderDate = (raw) => {
     if (!raw) return "-";
     if (typeof raw === "string") {
-      // for "YYYY-MM-DDTHH:mm" or "YYYY-MM-DDTHH:mm:ss"
-      if (raw.includes("T")) {
-        return raw.replace("T", " ").slice(0, 16);
-      }
-      // for "YYYY-MM-DD HH:MM:SS"
+      if (raw.includes("T")) return raw.replace("T", " ").slice(0, 16);
       if (raw.includes(" ")) return raw.slice(0, 16);
     }
     return String(raw);
@@ -375,7 +384,7 @@ export default function AdminTournamentsHeadshot() {
     <div style={pageBase}>
       <div style={container}>
         <div style={headerRow}>
-          <h1 style={titleStyle}>Admin – Headshot CS</h1>
+          <h1 style={titleStyle}>Admin – Headshot Tournaments</h1>
           <div style={walletBox}>
             <div style={bellDot} />
             <span style={{ fontSize: 13 }}>Wallet balance</span>
@@ -412,7 +421,7 @@ export default function AdminTournamentsHeadshot() {
               }}
             >
               <h3 style={{ margin: 0, fontSize: 16 }}>
-                {editingId ? "Edit tournament" : "Add new tournament"}
+                {editingId ? "Edit (creates new match)" : "Add new match"}
               </h3>
               {editingId && (
                 <button style={btnGhost} type="button" onClick={startCreate}>
@@ -431,6 +440,20 @@ export default function AdminTournamentsHeadshot() {
                   onChange={handleFormChange}
                   required
                 />
+              </div>
+
+              <div style={{ marginBottom: 8 }}>
+                <div style={label}>Mode (Solo/Duo/Squad)</div>
+                <select
+                  style={selectStyle}
+                  name="mode"
+                  value={form.mode}
+                  onChange={handleFormChange}
+                >
+                  <option value="solo">Solo</option>
+                  <option value="duo">Duo</option>
+                  <option value="squad">Squad</option>
+                </select>
               </div>
 
               <div
@@ -478,36 +501,17 @@ export default function AdminTournamentsHeadshot() {
                 />
               </div>
 
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "1fr 1fr",
-                  gap: 8,
-                  marginTop: 8,
-                }}
-              >
-                <div>
-                  <div style={label}>Max players</div>
-                  <input
-                    style={inputStyle}
-                    type="number"
-                    min="0"
-                    name="max_players"
-                    value={form.max_players}
-                    onChange={handleFormChange}
-                    required
-                  />
-                </div>
-                <div>
-                  <div style={label}>Map / Mode</div>
-                  <input
-                    style={inputStyle}
-                    name="map"
-                    value={form.map}
-                    onChange={handleFormChange}
-                    placeholder="Headshot CS"
-                  />
-                </div>
+              <div style={{ marginTop: 8 }}>
+                <div style={label}>Max players (slots)</div>
+                <input
+                  style={inputStyle}
+                  type="number"
+                  min="0"
+                  name="max_players"
+                  value={form.max_players}
+                  onChange={handleFormChange}
+                  required
+                />
               </div>
 
               <div style={{ marginTop: 8 }}>
@@ -521,7 +525,6 @@ export default function AdminTournamentsHeadshot() {
                   <option value="upcoming">Upcoming</option>
                   <option value="live">Live</option>
                   <option value="completed">Completed</option>
-                  <option value="locked">Locked</option>
                 </select>
               </div>
 
@@ -547,8 +550,8 @@ export default function AdminTournamentsHeadshot() {
                   {saving
                     ? "Saving..."
                     : editingId
-                    ? "Save changes"
-                    : "Create tournament"}
+                    ? "Save (create new)"
+                    : "Create match"}
                 </button>
               </div>
             </form>
@@ -563,7 +566,7 @@ export default function AdminTournamentsHeadshot() {
                 alignItems: "center",
               }}
             >
-              <h3 style={{ margin: 0, fontSize: 16 }}>Headshot tournaments</h3>
+              <h3 style={{ margin: 0, fontSize: 16 }}>Headshot matches</h3>
               <span style={smallText}>
                 {loading ? "Loading…" : `${items.length} total`}
               </span>
@@ -574,6 +577,7 @@ export default function AdminTournamentsHeadshot() {
                 <tr>
                   <th style={th}>ID</th>
                   <th style={th}>Name</th>
+                  <th style={th}>Mode</th>
                   <th style={th}>Entry</th>
                   <th style={th}>Prize</th>
                   <th style={th}>Players</th>
@@ -587,6 +591,7 @@ export default function AdminTournamentsHeadshot() {
                   <tr key={t.id}>
                     <td style={td}>{t.id}</td>
                     <td style={td}>{t.name}</td>
+                    <td style={td}>{(t.mode || "-").toString()}</td>
                     <td style={td}>₹{t.entry_fee}</td>
                     <td style={td}>₹{t.prize_pool}</td>
                     <td style={td}>
@@ -597,19 +602,13 @@ export default function AdminTournamentsHeadshot() {
                     </td>
                     <td style={td}>{statusTag(t.status)}</td>
                     <td style={td}>
-                      <div
-                        style={{
-                          display: "flex",
-                          flexWrap: "wrap",
-                          gap: 4,
-                        }}
-                      >
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
                         <button
                           style={actionBtn}
                           type="button"
                           onClick={() => startEdit(t)}
                         >
-                          Edit
+                          Edit (new)
                         </button>
                         <button
                           style={actionBtn}
@@ -632,14 +631,21 @@ export default function AdminTournamentsHeadshot() {
                         >
                           {t.status === "locked" ? "Unlock" : "Lock"}
                         </button>
+                        <button
+                          style={{ ...btnDanger, padding: "4px 10px", fontSize: 11 }}
+                          type="button"
+                          onClick={() => deleteMatch(t)}
+                        >
+                          Delete
+                        </button>
                       </div>
                     </td>
                   </tr>
                 ))}
                 {!loading && items.length === 0 && (
                   <tr>
-                    <td style={td} colSpan={8}>
-                      No Headshot tournaments yet.
+                    <td style={td} colSpan={10}>
+                      No headshot matches yet.
                     </td>
                   </tr>
                 )}
@@ -682,10 +688,7 @@ export default function AdminTournamentsHeadshot() {
                 style={inputStyle}
                 value={roomForm.room_password}
                 onChange={(e) =>
-                  setRoomForm((s) => ({
-                    ...s,
-                    room_password: e.target.value,
-                  }))
+                  setRoomForm((s) => ({ ...s, room_password: e.target.value }))
                 }
               />
             </div>

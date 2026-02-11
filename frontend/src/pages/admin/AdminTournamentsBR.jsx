@@ -1,10 +1,5 @@
-// frontend/src/pages/admin/AdminTournamentsTournament.jsx
-import React, {
-  useEffect,
-  useState,
-  useContext,
-  useCallback,
-} from "react";
+// frontend/src/pages/admin/AdminTournaments.jsx
+import React, { useEffect, useState, useContext, useCallback } from "react";
 import axios from "axios";
 import { AuthContext } from "../../context/AuthContext";
 
@@ -105,6 +100,12 @@ const btnGhost = {
   cursor: "pointer",
 };
 
+const btnDanger = {
+  ...btnGhost,
+  border: "1px solid rgba(248,113,113,0.9)",
+  color: "#fecaca",
+};
+
 const smallText = { fontSize: 11, opacity: 0.85 };
 
 const tagBase = {
@@ -134,7 +135,7 @@ const td = {
 
 const actionBtn = { ...btnGhost, padding: "4px 10px", fontSize: 11 };
 
-export default function AdminTournamentsTournament() {
+export default function AdminTournaments() {
   const { user, token } = useContext(AuthContext) || {};
   const [items, setItems] = useState([]);
   const [error, setError] = useState("");
@@ -144,11 +145,11 @@ export default function AdminTournamentsTournament() {
   const [editingId, setEditingId] = useState(null);
   const [form, setForm] = useState({
     name: "",
+    mode: "",
     entry_fee: "",
     prize_pool: "",
     date: "",
     max_players: "",
-    map: "",
     description: "",
     status: "upcoming",
   });
@@ -167,14 +168,14 @@ export default function AdminTournamentsTournament() {
     [token]
   );
 
-  const statusTag = (status) => {
+  const statusTag = (status, is_locked) => {
+    if (is_locked) return <span style={tagLocked}>Locked</span>;
     switch ((status || "").toLowerCase()) {
       case "live":
         return <span style={tagLive}>Live</span>;
       case "completed":
+      case "complete":
         return <span style={tagCompleted}>Completed</span>;
-      case "locked":
-        return <span style={tagLocked}>Locked</span>;
       default:
         return <span style={tagUpcoming}>Upcoming</span>;
     }
@@ -184,12 +185,9 @@ export default function AdminTournamentsTournament() {
     try {
       setLoading(true);
       setError("");
-      const res = await axios.get(
-        "http://localhost:5000/api/admin/tournaments",
-        {
-          headers: authHeaders(),
-        }
-      );
+      const res = await axios.get("http://localhost:5000/api/admin/tournaments", {
+        headers: authHeaders(),
+      });
       setItems(Array.isArray(res.data) ? res.data : []);
     } catch (e) {
       setError(e.response?.data?.message || "Failed to load tournaments.");
@@ -211,11 +209,11 @@ export default function AdminTournamentsTournament() {
     setEditingId(null);
     setForm({
       name: "",
+      mode: "",
       entry_fee: "",
       prize_pool: "",
       date: "",
       max_players: "",
-      map: "",
       description: "",
       status: "upcoming",
     });
@@ -223,25 +221,23 @@ export default function AdminTournamentsTournament() {
 
   const startEdit = (t) => {
     let dateValue = "";
-    if (t.date) {
-      if (typeof t.date === "string") {
-        if (t.date.includes("T")) {
-          dateValue = t.date.slice(0, 16);
-        } else if (t.date.includes(" ")) {
-          const [d, time] = t.date.split(" ");
-          dateValue = `${d}T${time.slice(0, 5)}`;
-        }
+    if (t.date && typeof t.date === "string") {
+      if (t.date.includes("T")) {
+        dateValue = t.date.slice(0, 16);
+      } else if (t.date.includes(" ")) {
+        const [d, time] = t.date.split(" ");
+        dateValue = `${d}T${time.slice(0, 5)}`;
       }
     }
 
     setEditingId(t.id);
     setForm({
       name: t.name || "",
+      mode: t.mode || "",
       entry_fee: t.entry_fee || "",
       prize_pool: t.prize_pool || "",
       date: dateValue,
       max_players: t.slots || "",
-      map: t.map || "",
       description: t.description || "",
       status: t.status || "upcoming",
     });
@@ -252,16 +248,17 @@ export default function AdminTournamentsTournament() {
     setForm((s) => ({ ...s, [name]: value }));
   };
 
+  // ALWAYS create a new tournament on save (new id, no old players)
   const handleSave = async (e) => {
     e.preventDefault();
 
     const payload = {
       name: form.name,
+      mode: form.mode,
       entry_fee: Number(form.entry_fee) || 0,
       prize_pool: Number(form.prize_pool) || 0,
       date: form.date,
-      slots: Number(form.max_players) || 0, // maps to "slots" column
-      map: form.map,
+      slots: Number(form.max_players) || 0,
       description: form.description,
       status: form.status,
     };
@@ -269,21 +266,14 @@ export default function AdminTournamentsTournament() {
     try {
       setSaving(true);
       setError("");
-      if (editingId) {
-        await axios.put(
-          `http://localhost:5000/api/admin/tournaments/${editingId}`,
-          payload,
-          { headers: authHeaders() }
-        );
-      } else {
-        await axios.post(
-          "http://localhost:5000/api/admin/tournaments",
-          payload,
-          { headers: authHeaders() }
-        );
-      }
+
+      await axios.post("http://localhost:5000/api/admin/tournaments", payload, {
+        headers: authHeaders(),
+      });
+
+      setEditingId(null);
+      startCreate();
       await loadTournaments();
-      if (!editingId) startCreate();
     } catch (e2) {
       setError(e2.response?.data?.message || "Failed to save tournament.");
     } finally {
@@ -292,16 +282,14 @@ export default function AdminTournamentsTournament() {
   };
 
   const toggleLock = async (t) => {
-    const next = t.status === "locked" ? "upcoming" : "locked";
+    const nextLocked = !t.is_locked;
     try {
       await axios.patch(
         `http://localhost:5000/api/admin/tournaments/${t.id}/status`,
-        { status: next },
+        { is_locked: nextLocked },
         { headers: authHeaders() }
       );
-      setItems((prev) =>
-        prev.map((x) => (x.id === t.id ? { ...x, status: next } : x))
-      );
+      setItems((prev) => prev.map((x) => (x.id === t.id ? { ...x, is_locked: nextLocked } : x)));
     } catch (e) {
       setError(e.response?.data?.message || "Failed to change status.");
     }
@@ -325,11 +313,7 @@ export default function AdminTournamentsTournament() {
       setItems((prev) =>
         prev.map((x) =>
           x.id === roomModalId
-            ? {
-                ...x,
-                room_id: roomForm.room_id,
-                room_password: roomForm.room_password,
-              }
+            ? { ...x, room_id: roomForm.room_id, room_password: roomForm.room_password }
             : x
         )
       );
@@ -356,12 +340,32 @@ export default function AdminTournamentsTournament() {
     }
   };
 
+  const deleteTournament = async (t) => {
+    const ok = window.confirm(
+      `Delete tournament #${t.id}?
+
+This should also remove joined players/participations for that tournament (depending on backend).`
+    );
+    if (!ok) return;
+
+    try {
+      setError("");
+      await axios.delete(`http://localhost:5000/api/admin/tournaments/${t.id}`, {
+        headers: authHeaders(),
+      });
+      // remove from UI
+      setItems((prev) => prev.filter((x) => x.id !== t.id));
+      // optional: if you want fresh data:
+      // await loadTournaments();
+    } catch (e) {
+      setError(e.response?.data?.message || "Failed to delete tournament.");
+    }
+  };
+
   const renderDate = (raw) => {
     if (!raw) return "-";
     if (typeof raw === "string") {
-      if (raw.includes("T")) {
-        return raw.replace("T", " ").slice(0, 16);
-      }
+      if (raw.includes("T")) return raw.replace("T", " ").slice(0, 16);
       if (raw.includes(" ")) return raw.slice(0, 16);
     }
     return String(raw);
@@ -371,13 +375,11 @@ export default function AdminTournamentsTournament() {
     <div style={pageBase}>
       <div style={container}>
         <div style={headerRow}>
-          <h1 style={titleStyle}>Admin – Tournament Panel</h1>
+          <h1 style={titleStyle}>Admin – Battle Royale Tournaments</h1>
           <div style={walletBox}>
             <div style={bellDot} />
             <span style={{ fontSize: 13 }}>Wallet balance</span>
-            <span style={{ fontWeight: 700, fontSize: 14 }}>
-              ₹{user?.wallet_balance ?? 0}
-            </span>
+            <span style={{ fontWeight: 700, fontSize: 14 }}>₹{user?.wallet_balance ?? 0}</span>
           </div>
         </div>
 
@@ -408,7 +410,7 @@ export default function AdminTournamentsTournament() {
               }}
             >
               <h3 style={{ margin: 0, fontSize: 16 }}>
-                {editingId ? "Edit tournament" : "Add new tournament"}
+                {editingId ? "Edit (creates new tournament)" : "Add new tournament"}
               </h3>
               {editingId && (
                 <button style={btnGhost} type="button" onClick={startCreate}>
@@ -429,13 +431,18 @@ export default function AdminTournamentsTournament() {
                 />
               </div>
 
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "1fr 1fr",
-                  gap: 8,
-                }}
-              >
+              <div style={{ marginBottom: 8 }}>
+                <div style={label}>Mode (Solo/Duo/Squad)</div>
+                <input
+                  style={inputStyle}
+                  name="mode"
+                  value={form.mode}
+                  onChange={handleFormChange}
+                  placeholder="Solo/Duo/Squad"
+                />
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
                 <div>
                   <div style={label}>Entry fee (₹)</div>
                   <input
@@ -474,50 +481,25 @@ export default function AdminTournamentsTournament() {
                 />
               </div>
 
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "1fr 1fr",
-                  gap: 8,
-                  marginTop: 8,
-                }}
-              >
-                <div>
-                  <div style={label}>Max players</div>
-                  <input
-                    style={inputStyle}
-                    type="number"
-                    min="0"
-                    name="max_players"
-                    value={form.max_players}
-                    onChange={handleFormChange}
-                    required
-                  />
-                </div>
-                <div>
-                  <div style={label}>Map / Mode</div>
-                  <input
-                    style={inputStyle}
-                    name="map"
-                    value={form.map}
-                    onChange={handleFormChange}
-                    placeholder="Tournament mode / map"
-                  />
-                </div>
+              <div style={{ marginTop: 8 }}>
+                <div style={label}>Max players (slots)</div>
+                <input
+                  style={inputStyle}
+                  type="number"
+                  min="0"
+                  name="max_players"
+                  value={form.max_players}
+                  onChange={handleFormChange}
+                  required
+                />
               </div>
 
               <div style={{ marginTop: 8 }}>
                 <div style={label}>Status</div>
-                <select
-                  style={selectStyle}
-                  name="status"
-                  value={form.status}
-                  onChange={handleFormChange}
-                >
+                <select style={selectStyle} name="status" value={form.status} onChange={handleFormChange}>
                   <option value="upcoming">Upcoming</option>
                   <option value="live">Live</option>
                   <option value="completed">Completed</option>
-                  <option value="locked">Locked</option>
                 </select>
               </div>
 
@@ -532,19 +514,9 @@ export default function AdminTournamentsTournament() {
                 />
               </div>
 
-              <div
-                style={{
-                  marginTop: 12,
-                  display: "flex",
-                  justifyContent: "flex-end",
-                }}
-              >
+              <div style={{ marginTop: 12, display: "flex", justifyContent: "flex-end" }}>
                 <button type="submit" style={btnPrimary} disabled={saving}>
-                  {saving
-                    ? "Saving..."
-                    : editingId
-                    ? "Save changes"
-                    : "Create tournament"}
+                  {saving ? "Saving..." : editingId ? "Save (create new)" : "Create tournament"}
                 </button>
               </div>
             </form>
@@ -552,17 +524,9 @@ export default function AdminTournamentsTournament() {
 
           {/* LIST */}
           <div style={listCard}>
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-              }}
-            >
-              <h3 style={{ margin: 0, fontSize: 16 }}>Tournaments</h3>
-              <span style={smallText}>
-                {loading ? "Loading…" : `${items.length} total`}
-              </span>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <h3 style={{ margin: 0, fontSize: 16 }}>Battle Royale tournaments</h3>
+              <span style={smallText}>{loading ? "Loading…" : `${items.length} total`}</span>
             </div>
 
             <table style={table}>
@@ -570,6 +534,7 @@ export default function AdminTournamentsTournament() {
                 <tr>
                   <th style={th}>ID</th>
                   <th style={th}>Name</th>
+                  <th style={th}>Mode</th>
                   <th style={th}>Entry</th>
                   <th style={th}>Prize</th>
                   <th style={th}>Players</th>
@@ -583,6 +548,7 @@ export default function AdminTournamentsTournament() {
                   <tr key={t.id}>
                     <td style={td}>{t.id}</td>
                     <td style={td}>{t.name}</td>
+                    <td style={td}>{t.mode || "-"}</td>
                     <td style={td}>₹{t.entry_fee}</td>
                     <td style={td}>₹{t.prize_pool}</td>
                     <td style={td}>
@@ -591,42 +557,23 @@ export default function AdminTournamentsTournament() {
                     <td style={td}>
                       <div style={smallText}>{renderDate(t.date)}</div>
                     </td>
-                    <td style={td}>{statusTag(t.status)}</td>
+                    <td style={td}>{statusTag(t.status, t.is_locked)}</td>
                     <td style={td}>
-                      <div
-                        style={{
-                          display: "flex",
-                          flexWrap: "wrap",
-                          gap: 4,
-                        }}
-                      >
-                        <button
-                          style={actionBtn}
-                          type="button"
-                          onClick={() => startEdit(t)}
-                        >
-                          Edit
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+                        <button style={actionBtn} type="button" onClick={() => startEdit(t)}>
+                          Edit (new)
                         </button>
-                        <button
-                          style={actionBtn}
-                          type="button"
-                          onClick={() => openRoomModal(t)}
-                        >
+                        <button style={actionBtn} type="button" onClick={() => openRoomModal(t)}>
                           Room
                         </button>
-                        <button
-                          style={actionBtn}
-                          type="button"
-                          onClick={() => openPlayersModal(t)}
-                        >
+                        <button style={actionBtn} type="button" onClick={() => openPlayersModal(t)}>
                           Players
                         </button>
-                        <button
-                          style={actionBtn}
-                          type="button"
-                          onClick={() => toggleLock(t)}
-                        >
-                          {t.status === "locked" ? "Unlock" : "Lock"}
+                        <button style={actionBtn} type="button" onClick={() => toggleLock(t)}>
+                          {t.is_locked ? "Unlock" : "Lock"}
+                        </button>
+                        <button style={{ ...btnDanger, padding: "4px 10px", fontSize: 11 }} type="button" onClick={() => deleteTournament(t)}>
+                          Delete
                         </button>
                       </div>
                     </td>
@@ -634,7 +581,7 @@ export default function AdminTournamentsTournament() {
                 ))}
                 {!loading && items.length === 0 && (
                   <tr>
-                    <td style={td} colSpan={8}>
+                    <td style={td} colSpan={9}>
                       No tournaments yet.
                     </td>
                   </tr>
@@ -659,17 +606,13 @@ export default function AdminTournamentsTournament() {
           }}
         >
           <div style={{ ...cardBase, maxWidth: 420, width: "90%" }}>
-            <h3 style={{ marginTop: 0, marginBottom: 8, fontSize: 16 }}>
-              Room details
-            </h3>
+            <h3 style={{ marginTop: 0, marginBottom: 8, fontSize: 16 }}>Room details</h3>
             <div style={{ marginBottom: 8 }}>
               <div style={label}>Room ID</div>
               <input
                 style={inputStyle}
                 value={roomForm.room_id}
-                onChange={(e) =>
-                  setRoomForm((s) => ({ ...s, room_id: e.target.value }))
-                }
+                onChange={(e) => setRoomForm((s) => ({ ...s, room_id: e.target.value }))}
               />
             </div>
             <div style={{ marginBottom: 8 }}>
@@ -677,27 +620,11 @@ export default function AdminTournamentsTournament() {
               <input
                 style={inputStyle}
                 value={roomForm.room_password}
-                onChange={(e) =>
-                  setRoomForm((s) => ({
-                    ...s,
-                    room_password: e.target.value,
-                  }))
-                }
+                onChange={(e) => setRoomForm((s) => ({ ...s, room_password: e.target.value }))}
               />
             </div>
-            <div
-              style={{
-                marginTop: 10,
-                display: "flex",
-                justifyContent: "flex-end",
-                gap: 8,
-              }}
-            >
-              <button
-                style={btnGhost}
-                type="button"
-                onClick={() => setRoomModalId(null)}
-              >
+            <div style={{ marginTop: 10, display: "flex", justifyContent: "flex-end", gap: 8 }}>
+              <button style={btnGhost} type="button" onClick={() => setRoomModalId(null)}>
                 Close
               </button>
               <button style={btnPrimary} type="button" onClick={saveRoom}>
@@ -722,23 +649,13 @@ export default function AdminTournamentsTournament() {
           }}
         >
           <div style={{ ...cardBase, maxWidth: 520, width: "95%" }}>
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                marginBottom: 8,
-              }}
-            >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
               <h3 style={{ margin: 0, fontSize: 16 }}>Players</h3>
-              <button
-                style={btnGhost}
-                type="button"
-                onClick={() => setPlayersModalId(null)}
-              >
+              <button style={btnGhost} type="button" onClick={() => setPlayersModalId(null)}>
                 Close
               </button>
             </div>
+
             {playersLoading ? (
               <div style={{ fontSize: 13 }}>Loading players…</div>
             ) : players.length === 0 ? (

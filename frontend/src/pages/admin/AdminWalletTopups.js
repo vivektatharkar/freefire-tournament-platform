@@ -1,5 +1,6 @@
 // frontend/src/pages/admin/AdminWalletTopups.js
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import api from "../../api";
 
 const wrapperStyle = {
@@ -7,7 +8,7 @@ const wrapperStyle = {
   padding: "24px 16px",
   boxSizing: "border-box",
   background:
-    "radial-gradient(circle at top, #1e293b 0, #020617 55%, #000 100%)",
+    "radial-gradient(1000px 500px at 10% 5%, rgba(56,189,248,0.12), transparent 50%), radial-gradient(900px 500px at 90% 20%, rgba(34,197,94,0.10), transparent 55%), linear-gradient(180deg, #020617 0%, #000 100%)",
   color: "#e5e7eb",
 };
 
@@ -15,39 +16,79 @@ const cardStyle = {
   maxWidth: 1200,
   margin: "0 auto",
   background: "rgba(15,23,42,0.96)",
-  borderRadius: 16,
+  borderRadius: 18,
   padding: 16,
+  border: "1px solid rgba(148,163,184,0.18)",
   boxShadow: "0 18px 40px rgba(0,0,0,0.75)",
 };
 
 const headerRow = {
   display: "flex",
   justifyContent: "space-between",
-  alignItems: "center",
+  alignItems: "flex-start",
   marginBottom: 12,
-  gap: 8,
+  gap: 12,
+  flexWrap: "wrap",
 };
 
 const h2Style = {
   margin: 0,
   fontSize: 22,
-  fontWeight: 700,
+  fontWeight: 800,
 };
 
-const exportBtn = {
-  padding: "8px 14px",
+const subStyle = { fontSize: 12, color: "#9ca3af", marginTop: 6 };
+
+const btn = {
+  padding: "8px 12px",
   borderRadius: 999,
-  border: "none",
-  backgroundImage: "linear-gradient(90deg,#22c55e,#38bdf8)",
-  color: "#020617",
-  fontWeight: 600,
+  border: "1px solid rgba(148,163,184,0.22)",
+  background: "rgba(2,6,23,0.35)",
+  color: "#e5e7eb",
+  fontWeight: 700,
   fontSize: 13,
   cursor: "pointer",
 };
 
+const exportBtn = {
+  ...btn,
+  border: "none",
+  backgroundImage: "linear-gradient(90deg,#22c55e,#38bdf8)",
+  color: "#020617",
+};
+
+const controlsRow = {
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "space-between",
+  gap: 12,
+  flexWrap: "wrap",
+  marginTop: 10,
+};
+
+const searchBox = {
+  flex: 1,
+  minWidth: 240,
+  padding: "10px 12px",
+  borderRadius: 12,
+  border: "1px solid rgba(148,163,184,0.22)",
+  background: "rgba(2,6,23,0.35)",
+  color: "#e5e7eb",
+  outline: "none",
+};
+
+const statsPill = {
+  padding: "8px 12px",
+  borderRadius: 999,
+  border: "1px solid rgba(148,163,184,0.18)",
+  background: "rgba(2,6,23,0.35)",
+  fontSize: 12,
+  color: "#cbd5e1",
+};
+
 const tableWrapper = {
-  marginTop: 8,
-  borderRadius: 10,
+  marginTop: 12,
+  borderRadius: 12,
   overflow: "hidden",
   border: "1px solid rgba(148,163,184,0.3)",
 };
@@ -60,7 +101,7 @@ const tableStyle = {
 
 const th = {
   textAlign: "left",
-  padding: "8px 6px",
+  padding: "9px 8px",
   background:
     "linear-gradient(180deg, rgba(30,64,175,0.95), rgba(15,23,42,0.98))",
   color: "#e5e7eb",
@@ -69,8 +110,9 @@ const th = {
 };
 
 const td = {
-  padding: "7px 6px",
+  padding: "8px 8px",
   borderBottom: "1px solid rgba(30,41,59,0.9)",
+  verticalAlign: "top",
 };
 
 const statusPill = (status) => {
@@ -89,10 +131,17 @@ const statusPill = (status) => {
   };
 };
 
+function safeStr(v) {
+  return (v ?? "").toString().toLowerCase();
+}
+
 export default function AdminWalletTopups() {
+  const navigate = useNavigate();
+
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState("");
+  const [q, setQ] = useState("");
 
   useEffect(() => {
     const load = async () => {
@@ -102,15 +151,35 @@ export default function AdminWalletTopups() {
         const res = await api.get("/admin/wallet-topups");
         setRows(res.data.topups || []);
       } catch (e) {
-        setErr(
-          e.response?.data?.message || "Failed to load wallet top-ups."
-        );
+        setErr(e.response?.data?.message || "Failed to load wallet top-ups.");
       } finally {
         setLoading(false);
       }
     };
     load();
   }, []);
+
+  const filteredRows = useMemo(() => {
+    const s = safeStr(q).trim();
+    if (!s) return rows;
+
+    return rows.filter((r) => {
+      const hay =
+        `${r.id} ${r.user_id} ${r.user_name} ${r.email} ${r.amount} ${r.status} ${r.payment_id} ${r.order_id} ${r.date}`.toLowerCase();
+      return hay.includes(s);
+    });
+  }, [rows, q]);
+
+  const totals = useMemo(() => {
+    const totalCount = filteredRows.length;
+    const successCount = filteredRows.filter((r) => r.status === "success").length;
+
+    const successAmount = filteredRows
+      .filter((r) => r.status === "success")
+      .reduce((sum, r) => sum + Number(r.amount || 0), 0);
+
+    return { totalCount, successCount, successAmount };
+  }, [filteredRows]);
 
   const handleExport = async () => {
     try {
@@ -127,9 +196,7 @@ export default function AdminWalletTopups() {
       a.remove();
       window.URL.revokeObjectURL(url);
     } catch (e) {
-      setErr(
-        e.response?.data?.message || "Failed to export CSV."
-      );
+      setErr(e.response?.data?.message || "Failed to export CSV.");
     }
   };
 
@@ -139,13 +206,39 @@ export default function AdminWalletTopups() {
         <div style={headerRow}>
           <div>
             <h2 style={h2Style}>Wallet Top-ups</h2>
-            <div style={{ fontSize: 12, color: "#9ca3af" }}>
+            <div style={subStyle}>
               Cross-check user wallet payments against Razorpay dashboard.
             </div>
+
+            <div style={controlsRow}>
+              <input
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                placeholder="Search by user, email, amount, status, payment id..."
+                style={searchBox}
+              />
+
+              <div style={statsPill}>
+                Showing <b>{totals.totalCount}</b> | Success:{" "}
+                <b>{totals.successCount}</b> | Success ₹{" "}
+                <b>{totals.successAmount.toFixed(2)}</b>
+              </div>
+            </div>
           </div>
-          <button style={exportBtn} onClick={handleExport}>
-            Export Payments CSV
-          </button>
+
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+            <button
+              style={btn}
+              onClick={() => navigate(-1)}
+              type="button"
+              title="Go back"
+            >
+              ← Back
+            </button>
+            <button style={exportBtn} onClick={handleExport} type="button">
+              Export Payments CSV
+            </button>
+          </div>
         </div>
 
         {loading && <p style={{ fontSize: 13 }}>Loading…</p>}
@@ -161,7 +254,7 @@ export default function AdminWalletTopups() {
           </p>
         )}
 
-        {!!rows.length && (
+        {!!filteredRows.length && (
           <div style={tableWrapper}>
             <div style={{ overflowX: "auto" }}>
               <table style={tableStyle}>
@@ -178,7 +271,7 @@ export default function AdminWalletTopups() {
                   </tr>
                 </thead>
                 <tbody>
-                  {rows.map((r) => (
+                  {filteredRows.map((r) => (
                     <tr key={r.id}>
                       <td style={td}>
                         {r.date ? new Date(r.date).toLocaleString() : ""}
@@ -205,6 +298,12 @@ export default function AdminWalletTopups() {
             </div>
           </div>
         )}
+
+        {!loading && rows.length > 0 && filteredRows.length === 0 ? (
+          <p style={{ fontSize: 13, color: "#9ca3af", marginTop: 12 }}>
+            No results for “{q}”.
+          </p>
+        ) : null}
       </div>
     </div>
   );
