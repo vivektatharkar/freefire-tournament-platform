@@ -1,22 +1,97 @@
-# FreeFire Tournament Platform (Scaffold)
+🎮 Battle Arenaa –Tournament Platform
 
-This is a starter scaffold for a FreeFire Tournament Platform with a Node.js backend and React frontend.
+📌 Overview
 
-## Quick start (local)
+Battle Arenaa is a gaming tournament platform designed to organize FreeFire matches with real cash rewards. This project includes a full-stack scaffold with a Node.js backend and React frontend, enabling scalable tournament management.
 
-1. Copy `.env` values into `backend/.env` and edit as needed.
-2. Start MySQL locally or use docker compose in `devops/`.
-3. From the root you can run backend directly (requires npm install inside backend):
-   - cd backend
-   - npm install
-   - npm run dev
-4. Run frontend (requires npm install inside frontend):
-   - cd frontend
-   - npm install
-   - npm start
+---
 
-Or run via Docker (from `devops/`):
-   docker compose up --build
+🚀 Features
 
-Frontend will be available at http://localhost:3000 and backend at http://localhost:5000
-Updated on <today>
+- 🎯 Player registration and match participation
+- 💸 Entry fee-based tournaments
+- 🔫 Kill-based reward system
+- 🏆 Prize pool distribution
+- 📅 Match scheduling system
+- 📢 Social media promotion integration
+
+---
+
+🛠️ Tech Stack
+
+Frontend:
+
+- React.js
+
+Backend:
+
+- Node.js
+- Express.js
+
+Database:
+
+- MySQL
+
+DevOps:
+
+- Docker (optional setup)
+
+---
+
+⚙️ Project Structure
+
+- "/backend" → API and server logic
+- "/frontend" → User interface (React app)
+- "/devops" → Docker configuration
+
+---
+
+▶️ How to Run Locally
+
+Backend Setup
+
+cd backend
+npm install
+npm run dev
+
+Frontend Setup
+
+cd frontend
+npm install
+npm start
+
+Frontend: http://localhost:3000
+Backend: http://localhost:5000
+
+---
+
+🐳 Run with Docker
+
+cd devops
+docker compose up --build
+
+---
+
+👨‍💻 My Contribution
+
+- Designed and built the platform architecture
+- Developed backend APIs and frontend structure
+- Implemented tournament logic and reward system
+- Managed deployment setup and local development workflow
+
+---
+
+📈 Future Improvements
+
+- User authentication system
+- Payment gateway integration
+- Admin dashboard
+- Real-time leaderboard
+
+---
+
+📬 Contact
+
+Vivek Suresh Tatharkar
+📧 tatharkarvivek@gmail.com
+GitHub: https://github.com/vivektatharkar
